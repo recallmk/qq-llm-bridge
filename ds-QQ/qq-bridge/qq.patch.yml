@@ -9,6 +9,7 @@
 - id: llm-deepseek
   config:
     apiKeyEnv: DSH_QQ_API_KEY
+    baseURL: https://api.deepseek.com
 
 - id: approval
   config:

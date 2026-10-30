@@ -2,6 +2,8 @@
 
 链路：QQ → NapCat OneBot v11 WebSocket → Node 桥接 → Antigravity CLI。此实现和 DeepSeek 桥接是两个独立实例，不会自动共用登录或记忆。
 
+以下命令与路径均相对于仓库中的 `gemini-QQ` 目录。`bridge/vendor/dsh-fish` 需联接或复制自仓库的 `qq-src/vendor/dsh-fish`。
+
 ## 配置和启动
 
 1. 在 Windows 上安装 Node.js 24 或更新版本、QQ、NapCat 和支持 stream-json 协议的 Antigravity CLI，登录各自账号。软件及账号状态不包含在仓库中。

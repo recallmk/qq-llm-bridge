@@ -1,0 +1,185 @@
+/**
+ * report.js —— 每天一份 `out/YYYY-MM-DD.md`
+ *
+ * 关键取舍：**这份报告不是"她的总结"，是"她的记录"。**
+ * 代码只做转写：她今天看了什么（事实）、她今天说了什么（原文引用）。
+ * 任何"今天她了解了…""可以看出她…"这类概括都不允许出现在这里——
+ * 一旦代码替她总结，她的表达权就被剥夺了，剩下的只是内容管道。
+ *
+ * 为什么仍然要落一份文件：
+ *   1. 事件流是给程序读的，人是读不下去的（一行一条 JSON）。
+ *   2. 用户要看"她今天干了什么"时，不该要求他打开 events.jsonl 自己拼。
+ *   3. 报告可以随时删除重建，不是真相源（真相源永远只有 events.jsonl 与 diary/）。
+ */
+
+import { promises as fs } from 'node:fs'
+import { join } from 'node:path'
+import { paths, writeAtomic, readEvents, readDaily } from './store.js'
+import { dateKey } from './settings.js'
+
+/** 她的话（可引用进报告的）：只取 HER_TYPES，meta 一律不进正文 */
+const QUOTABLE = new Set(['utterance', 'revise', 'reunion', 'narration', 'refusal', 'answer'])
+
+/**
+ * 事件的时刻字段叫 `ts`（schema.js:133 写入 `ts`）。
+ * 这里曾经写成 `e.at`，于是 quotesOf 永远返回空数组 →
+ * 报告永远印「今天她什么都没说」，哪怕事件流里明明有她的原话。
+ *
+ * 第二个坑：`ts` 存的是 **UTC**（`new Date().toISOString()`），而 `dateKey()`
+ * 给的是**本地**日期。东八区凌晨发生的事件，UTC 日期还是前一天，
+ * 直接 `slice(0,10)` 比对就会把今天的话算到昨天 → 照样"什么都没说"。
+ * 所以必须先把 ts 转成本地时间再取日期。
+ */
+const tsOf = (e) => String(e?.ts ?? e?.at ?? '')
+
+/** 事件时刻 → 本地日期键（与 dateKey() 同口径） */
+function localDay(ts) {
+  const ms = Date.parse(ts)
+  return Number.isFinite(ms) ? dateKey(new Date(ms)) : ''
+}
+
+/** 事件时刻 → 本地 HH:MM */
+function localClock(ts) {
+  const ms = Date.parse(ts)
+  if (!Number.isFinite(ms)) return ''
+  const d = new Date(ms)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+/** 某一天她自己写下的话（按时间顺序） */
+export function quotesOf(events, dk) {
+  const out = []
+  for (const e of events ?? []) {
+    if (!QUOTABLE.has(e?.type)) continue
+    if (localDay(tsOf(e)) !== dk) continue
+    out.push(e)
+  }
+  return out.sort((a, b) => tsOf(a).localeCompare(tsOf(b)))
+}
+
+export function fmtDur(sec) {
+  const n = Math.max(0, Math.round(Number(sec) || 0))
+  const m = Math.floor(n / 60)
+  const s = n % 60
+  return m ? `${m}分${String(s).padStart(2, '0')}秒` : `${s}秒`
+}
+
+/** 单条视频的一行记录（没有评价，只有事实） */
+function lineOf(item, i) {
+  const bits = [`${i + 1}. **[${item.bvid}](https://www.bilibili.com/video/${item.bvid})** ${item.title || '(无标题)'}`]
+  const meta = [
+    item.up ? `UP ${item.up}` : '',
+    item.duration ? fmtDur(item.duration) : '',
+    item.view ? `${Number(item.view).toLocaleString('zh-CN')} 播放` : '',
+  ].filter(Boolean)
+  if (meta.length) bits.push(`   - ${meta.join(' · ')}`)
+  if (item.reason) bits.push(`   - 停在这条的理由：${item.reason}`)
+  return bits.join('\n')
+}
+
+/**
+ * 生成一天的报告。
+ * @param {{dateKey:string, items?:object[], notes?:string[], events?:object[], diary?:string|null, diaryVisible?:boolean}} o
+ */
+export function buildReport(o = {}) {
+  const dk = o.dateKey ?? dateKey()
+  const items = Array.isArray(o.items) ? o.items : []
+  const quotes = quotesOf(o.events ?? [], dk)
+  const L = []
+
+  L.push(`# ${dk}`)
+  L.push('')
+
+  if (items.length) {
+    L.push('## 看了什么')
+    L.push('')
+    items.forEach((it, i) => { L.push(lineOf(it, i)); L.push('') })
+  } else {
+    L.push('## 看了什么')
+    L.push('')
+    L.push('今天没看。')
+    L.push('')
+  }
+
+  L.push('## 她说了什么')
+  L.push('')
+  if (quotes.length) {
+    for (const q of quotes) {
+      const t = localClock(tsOf(q))
+      const tag = q.type === 'revise' ? `（改写自 ${(q.refs ?? []).join(',') || '?'}）` : ''
+      L.push(`> ${String(q.text ?? '').replace(/\n+/g, ' ')}${tag}`)
+      L.push(`> — ${t}${q.verdict ? ` · ${q.verdict}` : ''}`)
+      L.push('')
+    }
+  } else {
+    L.push('今天她什么都没说。')
+    L.push('')
+  }
+
+  // 日记：默认不出现。只有配置里 visible=true 才贴进来。
+  // 注意这里读的是 diary/ 目录，不是事件流——日记压根不进事件流（见 capture.js）。
+  if (o.diaryVisible && o.diary) {
+    L.push('## 她的日记')
+    L.push('')
+    L.push(o.diary.trim())
+    L.push('')
+  }
+
+  if (Array.isArray(o.notes) && o.notes.length) {
+    L.push('---')
+    L.push('')
+    L.push('### 抓取备注（不是她的话）')
+    for (const n of o.notes) L.push(`- ${n}`)
+    L.push('')
+  }
+
+  L.push('---')
+  L.push('')
+  L.push('_这份文件由代码从事件流转写，只记录事实与原话，不含任何评价或总结。可以随时删除，下次会重新生成。_')
+  L.push('')
+  return L.join('\n')
+}
+
+/** 写文件，返回路径。永不抛出。 */
+export async function writeReport(md, root, dk = dateKey()) {
+  try {
+    const file = join(paths(root).outDir, `${dk}.md`)
+    await writeAtomic(file, md)
+    return file
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 一次完整落盘：读事件 + 读日记 + 拼 + 写。
+ * @returns {Promise<string|null>} 文件路径
+ */
+export async function flushReport(root, o = {}) {
+  const dk = o.dateKey ?? dateKey()
+  try {
+    const { events } = await readEvents(root)
+    const diary = o.diary !== undefined ? o.diary : await readDaily('diaryDir', dk, root).catch(() => null)
+    const md = buildReport({
+      dateKey: dk,
+      items: o.items ?? [],
+      notes: o.notes ?? [],
+      events,
+      diary,
+      diaryVisible: Boolean(o.diaryVisible),
+    })
+    return await writeReport(md, root, dk)
+  } catch {
+    return null
+  }
+}
+
+/** 列出已有报告的日期（新→旧） */
+export async function listReports(root) {
+  try {
+    const names = await fs.readdir(paths(root).outDir)
+    return names.filter((n) => /^\d{4}-\d{2}-\d{2}\.md$/.test(n)).map((n) => n.slice(0, 10)).sort().reverse()
+  } catch {
+    return []
+  }
+}

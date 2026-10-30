@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 980" width="1400" height="980" font-family="'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbfaf7"/>
+      <stop offset="1" stop-color="#f5f1e9"/>
+    </linearGradient>
+    <linearGradient id="pool" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fde68a"/>
+      <stop offset="1" stop-color="#fbbf24"/>
+    </linearGradient>
+    <marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#b45309"/>
+    </marker>
+    <filter id="soft2" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="6" flood-color="#1f2937" flood-opacity="0.08"/>
+    </filter>
+  </defs>
+
+  <rect width="1400" height="980" fill="url(#bg2)"/>
+
+  <text x="64" y="86" font-size="42" font-weight="700" fill="#111827">遗忘是怎么发生的</text>
+  <text x="64" y="126" font-size="19" fill="#6b7280">不是删掉，是不再摆在眼前：先按显著性排序，再按预算摆放，摆不下的折成一行——原文一条没丢。</text>
+  <line x1="64" y1="150" x2="1336" y2="150" stroke="#e5e7eb" stroke-width="1"/>
+
+  <!-- 左：认知池 -->
+  <g>
+    <text x="64" y="196" font-size="17" font-weight="700" fill="#b45309">她这些年攒下的判断</text>
+    <text x="64" y="220" font-size="13" fill="#9ca3af">条数只增不减（事件流只追加、不改写）</text>
+
+    <g font-size="12.5" fill="#78350f">
+      <rect x="64" y="238" width="300" height="30" rx="6" fill="url(#pool)"/>
+      <text x="76" y="258">判断 ① 提过 5 次 · 被验证 3 次</text>
+      <rect x="64" y="276" width="252" height="26" rx="6" fill="#fde68a"/>
+      <text x="76" y="294">判断 ② 提过 4 次</text>
+      <rect x="64" y="310" width="222" height="26" rx="6" fill="#fde68a"/>
+      <text x="76" y="328">判断 ③ 提过 3 次</text>
+      <rect x="64" y="344" width="186" height="26" rx="6" fill="#fef3c7"/>
+      <text x="76" y="362">判断 ④ 被验证 2 次</text>
+      <rect x="64" y="378" width="158" height="26" rx="6" fill="#fef3c7"/>
+      <text x="76" y="396">判断 ⑤ 提过 2 次</text>
+      <rect x="64" y="412" width="132" height="26" rx="6" fill="#fffbeb"/>
+      <text x="76" y="430">判断 ⑥</text>
+      <rect x="64" y="446" width="112" height="26" rx="6" fill="#fffbeb"/>
+      <text x="76" y="464">判断 ⑦</text>
+      <rect x="64" y="480" width="96" height="26" rx="6" fill="#fffbeb"/>
+      <text x="76" y="498">判断 ⑧</text>
+      <rect x="64" y="514" width="96" height="26" rx="6" fill="#fffbeb"/>
+      <text x="76" y="532">判断 ⑨</text>
+      <rect x="64" y="548" width="96" height="26" rx="6" fill="#fffbeb"/>
+      <text x="76" y="566">判断 ⑩</text>
+      <rect x="64" y="582" width="96" height="26" rx="6" fill="#fffbeb"/>
+      <text x="76" y="600">判断 ⑪</text>
+      <rect x="64" y="616" width="96" height="26" rx="6" fill="#fffbeb"/>
+      <text x="76" y="634">判断 ⑫</text>
+    </g>
+
+    <g font-size="12">
+      <rect x="64" y="666" width="150" height="28" rx="14" fill="#fef2f2" stroke="#fca5a5"/>
+      <text x="139" y="685" text-anchor="middle" fill="#991b1b">其中一道疤</text>
+      <text x="226" y="685" font-size="11.5" fill="#b45309">永不折叠</text>
+
+      <rect x="64" y="704" width="150" height="28" rx="14" fill="#ecfdf5" stroke="#6ee7b7"/>
+      <text x="139" y="723" text-anchor="middle" fill="#065f46">记得很牢</text>
+      <text x="226" y="723" font-size="11.5" fill="#b45309">不算进「更早以前」</text>
+    </g>
+
+    <path d="M372 430 C 410 430, 410 430, 446 430" fill="none" stroke="#b45309" stroke-width="2" marker-end="url(#a2)" opacity="0.6"/>
+  </g>
+
+  <!-- 中：显著性打分 -->
+  <g>
+    <rect x="446" y="238" width="286" height="398" rx="16" fill="#ffffff" stroke="#e5e7eb" filter="url(#soft2)"/>
+    <text x="470" y="274" font-size="16" font-weight="700" fill="#111827">先算「有多重」</text>
+    <text x="470" y="298" font-size="12.5" fill="#6b7280">三个因子，一次相加，不调模型</text>
+
+    <g font-size="13">
+      <rect x="470" y="318" width="238" height="66" rx="10" fill="#f9fafb"/>
+      <text x="486" y="344" font-weight="700" fill="#0f766e">被提过几次</text>
+      <text x="486" y="366" fill="#6b7280">同一句话反复说 → 权重上升</text>
+
+      <rect x="470" y="396" width="238" height="66" rx="10" fill="#f9fafb"/>
+      <text x="486" y="422" font-weight="700" fill="#0f766e">被验证几次</text>
+      <text x="486" y="444" fill="#6b7280">她自己试过、确认过 → 再上升</text>
+
+      <rect x="470" y="474" width="238" height="66" rx="10" fill="#f9fafb"/>
+      <text x="486" y="500" font-weight="700" fill="#0f766e">是不是疤 / 有矛盾</text>
+      <text x="486" y="522" fill="#6b7280">疤直接置顶；矛盾单独摆出来</text>
+    </g>
+
+    <rect x="470" y="556" width="238" height="58" rx="10" fill="#ecfdf5" stroke="#6ee7b7"/>
+    <text x="486" y="580" font-size="13" font-weight="700" fill="#065f46">提过 ≥ 3 次 或 验证 ≥ 2 次</text>
+    <text x="486" y="602" font-size="12.5" fill="#047857">→ 标成「记得很牢」，不参与折叠</text>
+  </g>
+
+  <!-- 右：这一次她看得见的 -->
+  <g>
+    <rect x="764" y="238" width="572" height="486" rx="16" fill="#ffffff" stroke="#e5e7eb" filter="url(#soft2)"/>
+    <text x="792" y="274" font-size="16" font-weight="700" fill="#111827">这一次真正摆在她眼前的</text>
+    <text x="792" y="298" font-size="12.5" fill="#6b7280">身份文档：默认 1200 字预算，超了就按下面的顺序摆</text>
+
+    <!-- 核心段 -->
+    <rect x="792" y="314" width="516" height="112" rx="10" fill="#fef2f2" stroke="#fecaca"/>
+    <text x="810" y="340" font-size="13.5" font-weight="700" fill="#991b1b">核心段：永远不裁</text>
+    <text x="810" y="364" font-size="12.5" fill="#7f1d1d">你是谁 · 四条不能做的 · 你至今没想通的事 · 两句话对不上</text>
+    <text x="810" y="386" font-size="12.5" fill="#b91c1c">疤和矛盾必须一直在——它们正是「人格」和「日志」的区别</text>
+    <text x="810" y="408" font-size="12.5" fill="#9ca3af">（对应代码：assemble() 里 keep:true 的段）</text>
+
+    <!-- 逐条 -->
+    <rect x="792" y="438" width="516" height="104" rx="10" fill="#f0fdfa" stroke="#99f6e4"/>
+    <text x="810" y="464" font-size="13.5" font-weight="700" fill="#0f766e">前 3 条：一条一行，整句原话</text>
+    <text x="810" y="490" font-size="12.5" fill="#134e4a">- 我觉得一整块地看视频比跳着看好</text>
+    <text x="810" y="512" font-size="12.5" fill="#134e4a">- 我不太会说话，但我不想学那种圆滑</text>
+    <text x="810" y="534" font-size="12.5" fill="#134e4a">- 被人反复追着问，我会先退一步</text>
+
+    <!-- 压一行 -->
+    <rect x="792" y="554" width="516" height="72" rx="10" fill="#fffbeb" stroke="#fde68a"/>
+    <text x="810" y="580" font-size="13.5" font-weight="700" fill="#92400e">接着 3 条：挤成一行，保留影子</text>
+    <text x="810" y="604" font-size="12.5" fill="#78350f">- 判断 ④；判断 ⑤；判断 ⑥（一行最多 200 字，超了截断）</text>
+
+    <!-- 更早 -->
+    <rect x="792" y="638" width="516" height="66" rx="10" fill="#f9fafb" stroke="#e5e7eb"/>
+    <text x="810" y="664" font-size="13.5" font-weight="700" fill="#374151">更早的：只剩一句交代</text>
+    <text x="810" y="688" font-size="12.5" fill="#6b7280">（还有 6 条更早的，你记不清原话了）</text>
+  </g>
+
+  <!-- 底部：折叠≠删除 -->
+  <g>
+    <line x1="64" y1="742" x2="1336" y2="742" stroke="#e5e7eb" stroke-width="1"/>
+    <text x="64" y="782" font-size="17" font-weight="700" fill="#111827">折叠 ≠ 删除：三件事同时成立</text>
+
+    <g font-size="13">
+      <rect x="64" y="802" width="398" height="112" rx="12" fill="#ffffff" stroke="#e5e7eb"/>
+      <text x="84" y="830" font-size="15" font-weight="700" fill="#0f766e">① 原文还在</text>
+      <text x="84" y="856" fill="#4b5563">每条判断都留在 events.jsonl，</text>
+      <text x="84" y="878" fill="#4b5563">只追加、不改写，删不掉。</text>
+      <text x="84" y="900" fill="#9ca3af">折叠只是「这一次没摆出来」。</text>
+
+      <rect x="486" y="802" width="398" height="112" rx="12" fill="#ffffff" stroke="#e5e7eb"/>
+      <text x="506" y="830" font-size="15" font-weight="700" fill="#0f766e">② 她自己能翻回来</text>
+      <text x="506" y="856" fill="#4b5563">her_recall 按关键词捞原始事件，</text>
+      <text x="506" y="878" fill="#4b5563">捞到就能重新当成眼前的记忆。</text>
+      <text x="506" y="900" fill="#9ca3af">不是「变聪明」，是去翻抽屉。</text>
+
+      <rect x="908" y="802" width="428" height="112" rx="12" fill="#ffffff" stroke="#e5e7eb"/>
+      <text x="928" y="830" font-size="15" font-weight="700" fill="#0f766e">③ 成长照旧计算</text>
+      <text x="928" y="856" fill="#4b5563">门槛、矛盾检测、显著性打分都看全量，</text>
+      <text x="928" y="878" fill="#4b5563">不会因为「这次没摆出来」就不算数。</text>
+      <text x="928" y="900" fill="#9ca3af">摆出来的是视线，不是账本。</text>
+    </g>
+
+    <text x="64" y="948" font-size="12.5" fill="#9ca3af">理论出处：工作记忆容量 ← Cowan（约 4 个组块）；线索依赖遗忘与重构 ← Tulving / Bartlett；遗忘的适应功能 ← Bjork；显著性加权 ← 情绪唤醒度效应。</text>
+  </g>
+</svg>

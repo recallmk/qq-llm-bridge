@@ -1,0 +1,13 @@
+{
+  "name": "ds-qq-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "QQ / NapCat 与 DeepSeek Harness 的常驻桥接及大肥鱼成长系统",
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start.ps1",
+    "setup": "node scripts/configure.mjs",
+    "status": "node scripts/status.mjs"
+  }
+}

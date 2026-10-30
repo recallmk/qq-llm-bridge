@@ -1,0 +1,71 @@
+# QQ 机器人专用覆盖层：dsh --profile sdk --patch <PROJECT>/qq-bridge/qq.patch.yml
+#
+# 1) 凭据：使用独立的 DSH_QQ_API_KEY；deepseek-account 路由不需要 key。
+# 2) 无人值守：固定 approval=never，否则工具调用会卡在等审批。
+# 3) 沙箱：默认 workspace-write；可用 DSH_QQ_SANDBOX 覆盖。
+# 4) 人设：persona.md 提供简短起点，养成会话结合成长记录生成当前身份。
+# 5) 用支持 resume 的 SDK server 替换官方实现，固定 session 跨进程续历史。
+
+- id: llm-deepseek
+  config:
+    apiKeyEnv: DSH_QQ_API_KEY
+
+- id: approval
+  config:
+    policy: never
+
+# Tool identity and cancellation are enforced by qq-jsonrpc-server per session.
+- id: tools
+  config:
+    mode: native
+
+- id: sandbox-policy
+  config:
+    mode: !!js process.env.DSH_QQ_SANDBOX ?? 'workspace-write'
+    workspaceRoot: !!js process.cwd()
+
+- id: permission
+  config:
+    defaultPreset: !!js "process.env.DSH_QQ_SANDBOX === 'danger-full-access' ? 'full-never' : (process.env.DSH_QQ_SANDBOX === 'workspace-write' ? 'workspace-never' : 'readonly-never')"
+    presets:
+      readonly-never:
+        sandbox: read-only
+        approval: never
+      workspace-never:
+        sandbox: workspace-write
+        approval: never
+      full-never:
+        sandbox: danger-full-access
+        approval: never
+
+- id: system-prompt
+  config:
+    includeHarnessIdentity: false
+    personaPrefix: '你是网上流传的“大肥鱼”，正在 QQ 里和熟人聊天。'
+    personaSuffix: |
+      当前任务是接着 QQ 消息聊天。最终回复只写发出去的正文，不写分析、汇报或服务邀约。
+      像平常发消息那样自然接话，长短随话题。以当前会话注入的身份与经历为依据。
+
+# 6) 使用支持 resume 的 SDK server 替代官方实现
+- id: sdk-jsonrpc-server
+  disabled: true
+
+- insert:
+    - id: qq-jsonrpc-server
+      name: '__QQ_BRIDGE_SERVER_URL__'
+      inject: [sdkAppStartup, loader]
+      config:
+        maxTokensAsSuccess: true
+        temperature: 1.2
+
+    # 7) QQ 工具：AI 可以自己发消息/引用回复/看群消息（白名单与限速在桥接里执行）
+    - id: mcp-qq
+      disabled: true
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: qq
+        transport: stdio
+        command: '__QQ_BRIDGE_NODE__'
+        args:
+          - '__QQ_BRIDGE_MCP__'
+        toolCallTimeoutMs: 30000

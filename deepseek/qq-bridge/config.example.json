@@ -1,0 +1,107 @@
+{
+  "onebotWs": "ws://127.0.0.1:3001",
+  "provider": "deepseek-account",
+  "model": "deepseek-flash",
+  "reasoningEffort": "off",
+  "apiKey": "",
+  "permissionMode": "workspace-write",
+  "groupsEnabled": false,
+  "ownerQq": [],
+  "allowUsers": [],
+  "allowGroups": [],
+  "groupRequireAt": true,
+  "readAir": {
+    "enabled": true,
+    "cooldownSeconds": 120,
+    "maxPerMinute": 3,
+    "contextMessages": 30,
+    "minChars": 2,
+    "ignorePrefixes": [
+      "/"
+    ],
+    "pauseMs": 6000,
+    "maxWaitMs": 20000,
+    "reviewAfterSeconds": 300,
+    "minMessages": 5
+  },
+  "debounceMs": 1500,
+  "maxQueuedTurns": 8,
+  "send": {
+    "intervalMs": 1500,
+    "maxPerMinute": 12,
+    "globalMaxPerMinute": 36,
+    "maxQueuedMessages": 100
+  },
+  "dedup": {
+    "ttlMs": 600000,
+    "maxEntries": 5000
+  },
+  "fish": {
+    "enabled": false,
+    "browseEnabled": true,
+    "dailyBudgetCny": 0.2
+  },
+  "stickers": {
+    "enabled": true,
+    "probability": 0.25,
+    "cooldownSeconds": 60
+  },
+  "weeklyBudgetCny": 5,
+  "globalWeeklyBudgetCny": 5,
+  "usdCny": 7.2,
+  "price": {
+    "cacheHit": 0.006,
+    "cacheMiss": 0.3,
+    "output": 1.2
+  },
+  "replyTimeoutMs": 180000,
+  "maxReplyChars": 1200,
+  "replyChunkChars": 600,
+  "health": {
+    "silenceWarnMs": 600000
+  },
+  "quoteReply": {
+    "enabled": true,
+    "groupMode": "model",
+    "private": false
+  },
+  "control": {
+    "enabled": true,
+    "port": 3102
+  },
+  "tools": {
+    "enabled": false
+  },
+  "maxDebounceMs": 5000,
+  "vision": {
+    "enabled": true,
+    "maxImageBytes": 8388608,
+    "maxCacheBytes": 134217728,
+    "ttlMs": 86400000
+  },
+  "qzone": {
+    "enabled": false,
+    "visibility": "friends",
+    "maxPerDay": 1,
+    "cooldownHours": 20,
+    "maxChars": 500,
+    "timeZone": "America/Los_Angeles"
+  },
+  "privateBatch": {
+    "pauseMs": 8000,
+    "maxWaitMs": 45000
+  },
+  "groupPerformance": {
+    "contextMessages": 8,
+    "contextChars": 2600,
+    "contextMessageChars": 320,
+    "sessionTurns": 8,
+    "sessionIdleMinutes": 60,
+    "parallelGroups": 2,
+    "parallelModelTurns": 3,
+    "pauseMs": 2000,
+    "maxWaitMs": 10000,
+    "ambientMaxAgeMs": 90000
+  },
+  "botQq": ""
+}

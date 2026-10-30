@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>大肥鱼 · 观测台</title>
+<style>
+:root{color-scheme:dark;--bg:#111b20;--card:#1b2b32;--line:#34464b;--ink:#ebf2ec;--soft:#a6bdb6;--accent:#b8da8b}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 system-ui,"Microsoft YaHei",sans-serif}main{max-width:1080px;margin:auto;padding:44px 24px 70px}header{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:30px}h1{font-size:30px;margin:0;letter-spacing:2px}h2{font-size:18px;margin:0 0 16px}p{margin:8px 0}.soft,small{color:var(--soft)}.badge{border:1px solid var(--line);border-radius:99px;padding:6px 14px;color:var(--accent);white-space:nowrap}.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px;margin:16px 0}.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}.grow{flex:1}.grid{display:grid;grid-template-columns:1.15fr 1fr;gap:18px}.grid .card{margin:0}input,select,button{font:inherit;color:inherit;border:1px solid #52666b;border-radius:9px;background:#132127;padding:9px 12px;max-width:100%}button{cursor:pointer;background:#b8da8b;color:#17251a;border:0;font-weight:650}button.secondary{background:transparent;color:var(--ink);border:1px solid #52666b}button:disabled{opacity:.5;cursor:wait}input[type=number]{width:90px}label{display:flex;gap:8px;align-items:center;margin:12px 0}.metrics{display:flex;gap:24px;flex-wrap:wrap}.metric b{display:block;font-size:29px;font-weight:600}.metric small{font-size:13px}.entry{border-top:1px solid var(--line);padding:12px 0;white-space:pre-wrap;overflow-wrap:anywhere}.entry:first-child{border:0}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;margin:0}.error{color:#ffc4ae}#message{min-height:26px;margin:12px 0}#content[hidden]{display:none}.settings{padding-top:24px}.foot{font-size:13px;color:var(--soft);margin-top:28px}@media(max-width:700px){main{padding:24px 16px}.grid{grid-template-columns:1fr}header{align-items:start}.badge{font-size:13px}.card{padding:18px}h1{font-size:24px}}
+</style>
+<main>
+<header><div><h1>大肥鱼 · 观测台</h1><p class="soft">看看她记住了什么，也给她一点慢慢生长的空间。</p></div><span class="badge">B 站公开只读</span></header>
+<section class="card"><div class="row"><input id="token" class="grow" type="password" autocomplete="off" placeholder="自动填入本机观测台令牌" aria-label="观测台令牌"><button id="connect">连接</button><button class="secondary" id="forget">断开</button></div><small>打开页面自动连接，令牌只留在当前页面内存中。具体经历按场景回忆，共同性格跨会话延续。</small></section>
+<div id="message" role="status" aria-live="polite">正在自动连接本机观测台…</div>
+<div id="content" hidden>
+<div class="row"><label>会话 <select id="chat" aria-label="QQ 会话"></select></label><button id="refresh" class="secondary">刷新</button></div>
+<section class="card"><div class="metrics"><div class="metric"><b id="day">—</b><small>当前会话相处天数</small></div><div class="metric"><b id="stage">—</b><small>原内核阶段，仅供观察</small></div><div class="metric"><b id="events">—</b><small>留下的记录</small></div><div class="metric"><b id="cost">—</b><small>今日后台估算花费</small></div></div><p id="gate" class="soft"></p></section>
+<div class="grid"><section class="card"><h2>她现在的判断</h2><div id="beliefs"></div></section><section class="card"><h2>留下的话</h2><div id="letters"></div><button id="read" class="secondary">标记已读</button></section></div>
+<section class="card"><h2>共同性格与兴趣</h2><div id="personality"></div><p id="companionCounts" class="soft"></p><small>跨聊天共享一般倾向，具体人物与经历按场景回忆。新倾向需要不同经历逐步积累，时间和拒绝次数不会直接生成性格。</small></section>
+<section class="card"><h2>这个场景里留下的立场</h2><div id="stances"></div></section>
+<section class="card"><h2>翻一翻过去</h2><div class="row"><input id="query" class="grow" placeholder="一句话、一个词，或者留空看最近记录" aria-label="记忆关键词"><button id="search">查找</button></div><div id="memories"></div></section>
+<section class="card"><div class="row"><h2 class="grow">日记</h2><input id="date" type="date" aria-label="日记日期"><button id="diaryButton" class="secondary">查看</button></div><pre id="diary"></pre></section>
+<section class="card settings"><h2>生长环境</h2><small>这里只能调整醒来、浏览和日记可见性。判断和记忆由她从真实互动中形成。</small><div class="row"><label>每天最多醒来 <input id="wakes" type="number" min="0" max="4"> 次</label><label>时段 <input id="start" type="time"> 至 <input id="end" type="time"></label></div><div class="row"><label><input id="browse" type="checkbox">允许公开浏览</label><label>每天最多浏览 <input id="browseDay" type="number" min="0" max="4"> 次</label><label><input id="visible" type="checkbox">开放日记</label></div><button id="save">保存环境</button><p class="soft">主人私聊和群聊都会按各自保存的次数、时段在空闲时轮流唤醒；自动唤醒至少间隔15分钟，共享后台预算。群后台内容只留在本群观测台，由她自行决定是否写日记或留话，不主动发到群里。主人私聊可用「/鱼 醒来」手动唤醒。时间以桥接运行电脑为准。</p></section>
+</div>
+<p class="foot">成长记录按事件追加保存。没有登录 B 站，不会点赞、投币、关注或发表评论。读取的是标题、简介、标签、热评和弹幕，未观看视频画面。</p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let token = '', current = '', automaticToken = false, tokenRequest, authEpoch = 0;
+function message(text, error=false){$('message').textContent=text;$('message').className=error?'error':'soft';}
+function requireEpoch(epoch){if(epoch!==authEpoch)throw Object.assign(new Error('已断开'),{name:'AbortError'});}
+async function acquireConsoleToken(){
+  if(!tokenRequest||tokenRequest.epoch!==authEpoch){const request={epoch:authEpoch};tokenRequest=request;request.promise=(async()=>{
+    const response=await fetch('/fish/session',{method:'POST',headers:{'x-qq-console':'1'},cache:'no-store'});
+    const data=await response.json();if(!response.ok||!data.ok||!data.token)throw new Error(data.error||'获取本机令牌失败');
+    requireEpoch(request.epoch);
+    token=data.token;automaticToken=true;$('token').value=token;
+  })().finally(()=>{if(tokenRequest===request)tokenRequest=undefined;});}
+  await tokenRequest.promise;
+}
+async function api(operation, params={}, patch){
+  const epoch=authEpoch, usedToken=token;
+  const query = new URLSearchParams({...params,...(current?{id:current}:{})});
+  const request=()=>fetch('/fish/'+operation+(patch?'':'?'+query),{method:patch?'POST':'GET',headers:{'x-qq-token':token,...(patch?{'content-type':'application/json'}:{})},...(patch?{body:JSON.stringify({id:current,patch})}:{})});
+  let response=await request();
+  requireEpoch(epoch);
+  if(response.status===401&&automaticToken){if(token===usedToken)await acquireConsoleToken();requireEpoch(epoch);response=await request();}
+  const data = await response.json();requireEpoch(epoch); if(!response.ok || !data.ok) throw new Error(data.error || '操作失败'); return data;
+}
+function entries(id, rows, empty){const box=$(id);box.replaceChildren();if(!rows.length){box.textContent=empty;return;}for(const row of rows){const div=document.createElement('div');div.className='entry';div.textContent=row;box.append(div);}}
+async function refresh(){
+  const [s,box,d] = await Promise.all([api('status'),api('inbox'),api('diary')]);
+  $('day').textContent=s.day;$('stage').textContent=s.stageName;$('events').textContent=s.eventCount;$('cost').textContent='¥'+s.todayCost.toFixed(4);
+  $('gate').textContent=`拒绝 ${s.refusals} 次 · 改口 ${s.revises} 次 · 未读留话 ${box.unread} 条`;
+  entries('beliefs',s.beliefs.map(b=>b.text),'还在慢慢形成自己的判断。');
+  entries('letters',box.rows.map(r=>r.text).concat(!box.rows.length&&box.lastWake?[box.lastWake.text]:[]),'暂时没有留话。');
+  $('diary').textContent=d.text;$('date').value=d.date||'';
+  entries('stances',s.stances.map(s=>s.text),'还在经历与修正中。');
+  const labels={favor:'偏喜欢／赞同',against:'偏不喜欢／不赞同',mixed:'有喜欢的部分，也有保留',undecided:'还在了解'};
+  entries('personality',(s.companion?.personality||[]).map(p=>`${p.topic}：${labels[p.stance]} · ${p.settled?'逐渐稳定':'初步倾向'}${p.reconsidering?' · 正在重新考虑':''}`),'还没有共同倾向，先多经历一些事。');
+  $('companionCounts').textContent=`当前场景：${s.companion?.memories||0} 条分类记忆，${s.companion?.observations||0} 条原话来源`;
+  $('wakes').value=s.settings.wakesPerDay;$('start').value=s.settings.window[0];$('end').value=s.settings.window[1];
+  $('browse').checked=s.settings.browse;$('browseDay').value=s.settings.browsePerDay;$('visible').checked=s.diaryVisible;
+  const bg=s.background;
+  if(bg){$('gate').textContent+=` · 后台今日 ${bg.usedToday}/${bg.maxPerDay} 次 · ${bg.reason}`;}
+  message('已更新 · '+new Date().toLocaleTimeString('zh-CN'));
+}
+function act(id,fn){$(id).addEventListener('click',async()=>{const button=$(id);button.disabled=true;try{await fn();}catch(e){if(e.name!=='AbortError')message(e.message,true);}finally{button.disabled=false;}});}
+async function connect(){const entered=$('token').value.trim();if(entered!==token)automaticToken=false;token=entered;const data=await api('chats');if(!data.chats.length)throw new Error('还没有养成会话，先在 QQ 里聊一句。');$('chat').replaceChildren();for(const id of data.chats){const option=document.createElement('option');option.value=id;option.textContent=(id.startsWith('p-')?'私聊 ':'群聊 ')+id.slice(2);$('chat').append(option);}current=data.chats.includes(current)?current:data.chats[0];$('chat').value=current;$('content').hidden=false;await refresh();}
+act('connect',async()=>{if(!$('token').value.trim())await acquireConsoleToken();await connect();});
+act('forget',async()=>{authEpoch++;token='';current='';automaticToken=false;$('token').value='';$('content').hidden=true;for(const id of ['beliefs','stances','personality','companionCounts','letters','memories','diary'])$(id).replaceChildren();message('已断开。点击连接可重新自动连接。');});
+act('refresh',refresh);$('chat').addEventListener('change',async()=>{current=$('chat').value;entries('memories',[],'');try{await refresh();}catch(e){message(e.message,true);}});
+act('read',async()=>{await api('inbox',{read:true});await refresh();});
+act('search',async()=>{const data=await api('memory',{query:$('query').value});entries('memories',data.rows.map(r=>`${r.date||''} [${r.type||'记录'}] ${r.text}${r.basis?'\n来源性质：'+r.basis:''}${r.evidenceIds?'\n原话：'+r.evidenceIds.join(', '):''}${r.revises?'\n修正：'+r.revises:''}`),'没翻到相关记录。');});
+act('diaryButton',async()=>{$('diary').textContent=(await api('diary',{date:$('date').value})).text;});
+act('save',async()=>{await api('settings',{}, {wakesPerDay:Number($('wakes').value),window:[$('start').value,$('end').value],browseEnabled:$('browse').checked,browsePerDay:Number($('browseDay').value),diaryVisible:$('visible').checked});await refresh();message('生长环境已保存。');});
+(async()=>{const button=$('connect');button.disabled=true;try{await acquireConsoleToken();await connect();}catch(e){if(e.name!=='AbortError')message('自动连接失败：'+e.message+'。可点击连接重试，或手动填入本机令牌。',true);}finally{button.disabled=false;}})();
+</script>
+</html>

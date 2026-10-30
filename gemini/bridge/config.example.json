@@ -1,0 +1,18 @@
+{
+  "onebotWs": "ws://127.0.0.1:3002",
+  "expectedBotQq": "",
+  "ownerQq": [],
+  "allowUsers": [],
+  "allowGroups": [],
+  "groupsEnabled": false,
+  "antigravity": {
+    "bin": "E:/path/to/agy.exe",
+    "home": "E:/path/to/gemini-profile",
+    "proxy": ""
+  },
+  "fish": { "enabled": false },
+  "tools": { "enabled": false },
+  "stickers": { "enabled": false },
+  "qzone": { "enabled": false },
+  "control": { "enabled": true, "port": 3103 }
+}

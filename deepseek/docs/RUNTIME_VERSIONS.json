@@ -1,0 +1,35 @@
+{
+  "node": "v24.19.0",
+  "modules": [
+    {
+      "name": "@deepseek-ai/schemastery",
+      "version": "3.18.2"
+    },
+    {
+      "name": "@deepseek-ai/dsh-sdk-protocol",
+      "version": "0.1.5-rc.2"
+    },
+    {
+      "name": "@deepseek-ai/dsh-sdk-jsonrpc-server",
+      "version": "0.1.5-rc.2"
+    },
+    {
+      "name": "@deepseek-ai/dsh-brand",
+      "version": "0.1.5-rc.2"
+    },
+    {
+      "name": "@deepseek-ai/dsh-base",
+      "version": "0.1.5-rc.2"
+    },
+    {
+      "name": "@deepseek-ai/dsh-sdk-app",
+      "version": "0.1.5-rc.2"
+    }
+  ],
+  "vendor": {
+    "name": "dsh-fish",
+    "version": "0.6.1"
+  },
+  "harness": "0.2.1.0",
+  "qq": "9.9.33.52230-aff854e8"
+}

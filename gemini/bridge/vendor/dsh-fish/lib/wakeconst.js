@@ -1,0 +1,32 @@
+/**
+ * wakeconst.js —— 唤醒触发语，单独一个文件只为避开循环依赖。
+ *
+ * scheduler.js 已经 import 了 home.js（拿 talkSessionId），所以 home.js 不能反过来
+ * import scheduler.js；两边都要用这同一句话，就把它挪到这里。
+ *
+ * 这句话是唤醒那一轮里**唯一**出现在对话中的 user 消息：真正的「这一次的处境」
+ * 走 system prompt 的 `fish:wake` 段，不进对话历史。
+ *
+ * 2026-10-26 改（用户 m00507）：原来是光秃秃的「……」。
+ * 真机实测她把它当成**用户发来的一句话**，reasoning 原话是「用户发来的只有一个
+ * 省略号，没有实质请求」，接着自己猜「用户的意思是让我留一句话、写日记」——
+ * 猜错了方向；侧栏标题还被模型生成成了「Error」。换成括号旁白：括号在对话里
+ * 通常表示「这不是谁说的话，是场面本身」，不像一个需要她接的话头。
+ * 同时 `fish:wake` 段开头加了一句说明（见 scheduler.js 的 WAKE_HINT），
+ * 让她明确知道这条括号短句是叫醒信号、不用回应、也不用猜。
+ */
+export const WAKE_TRIGGER = '（醒一醒）'
+
+/**
+ * 空白屋子第一次醒来时的触发语（2026-10-27 用户反馈）。
+ *
+ * 这条路径（`wakeIfBlank`，启动时发现会话还是空的）不经过 `wake()`，
+ * 没有 `fish:wake` 段可写处境——她只看见「（醒一醒）」，于是自己猜
+ * 「大概不是我的时段」，还以为权限出了问题。把时间与缘由直接写进这一句：
+ * 仍然是旁白、不是剧本，只是把「发生了什么事」说完整。
+ */
+export function freshWakeText(now = new Date()) {
+  const d = now instanceof Date ? now : new Date(now)
+  const t = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  return `（醒一醒。现在是 ${t}，屋子刚建好，有人叫了你一声。）`
+}

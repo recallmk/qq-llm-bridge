@@ -92,7 +92,7 @@ const cfg = {
     enabled: true,
     probability: 0.25,
     cooldownSeconds: 60,
-    dir: path.join(HERE, 'stickers-gemini-hakimi'),
+    dir: path.join(HERE, 'stickers-gemini-purple'),
   },
   readAir: {
     enabled: true,
@@ -145,10 +145,10 @@ cfg.stickers = {
   enabled: true,
   probability: 0.25,
   cooldownSeconds: 60,
-  dir: path.join(HERE, 'stickers-gemini-hakimi'),
+  dir: path.join(HERE, 'stickers-gemini-purple'),
   ...(rawCfg.stickers ?? {}),
 };
-const stickerDir = path.resolve(cfg.stickers.dir || path.join(HERE, 'stickers-gemini-hakimi'));
+const stickerDir = path.resolve(cfg.stickers.dir || path.join(HERE, 'stickers-gemini-purple'));
 const stickerLibrary = new StickerLibrary(stickerDir);
 const stickerFiles = stickerLibrary.entries.map(row => row.file);
 
@@ -554,7 +554,7 @@ function helpText() {
     '/额度 或 /quota — 查看本周额度',
     '/status 或 /bot-status — 查看 Antigravity/OneBot 状态',
     '/ping 或 /bot-ping — 延迟检测',
-    '/表情包 [编号/场景] — 发一张 Gemini 哈基咪表情包（如：摸鱼、疑惑、G01）',
+    '/表情包 [编号/场景] — 发一张 Gemini 紫色猫娘表情包（如：思考、开心、P01）',
     '/日记 内容 — 主人写一条今天的长期记忆',
     '/空间 [开|关] — 主人私聊查看或暂停自主说说',
     ...(fish ? ['/鱼 — 查看养成菜单（主人私聊）'] : []),

@@ -21,6 +21,6 @@ The optional shared social module is loaded from a private bridge/social.config.
 
 ## Gemini 专属表情图库
 
-Gemini 默认使用桥接目录下的 stickers-gemini-hakimi，运行配置的 stickers.dir 可指定独立本地目录。图库与 DeepSeek 分离；不要把路径指向 DS 图库，也不要复制 DS 素材作为 Gemini 默认表情。catalog.json 保存检索 ID、台词、画面描述、情绪、适用场景和来源信息。模型只拿到描述和不透明 ID，通过现有检索/发送工具选择；群聊权限、每轮上限和冷却保持原有规则。
+Gemini 默认使用桥接目录下的 stickers-gemini-purple，形象为紫蓝长发、猫耳猫尾、异色瞳的 Gemini 猫娘。运行配置的 stickers.dir 可指定独立本地目录。图库与 DeepSeek 分离；不要把路径指向 DS 图库，也不要复制 DS 素材作为 Gemini 默认表情。catalog.json 保存检索 ID、台词、画面描述、情绪、适用场景和来源信息。模型只拿到描述和不透明 ID，通过现有检索/发送工具选择；群聊权限、每轮上限和冷却保持原有规则。
 
 图片、实际图库目录、私有运行配置及本机交接不进入 Git。素材出处和授权状态须在本机保留；聊天梗图不自动成为公开平台原创素材。保持原有随机发送概率设置，不为了安装图库发送 QQ 测试消息。

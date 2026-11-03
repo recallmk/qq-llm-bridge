@@ -92,7 +92,7 @@ const cfg = {
     enabled: true,
     probability: 0.25,
     cooldownSeconds: 60,
-    dir: path.join(HERE, 'stickers'),
+    dir: path.join(HERE, 'stickers-gemini-hakimi'),
   },
   readAir: {
     enabled: true,
@@ -145,10 +145,10 @@ cfg.stickers = {
   enabled: true,
   probability: 0.25,
   cooldownSeconds: 60,
-  dir: path.join(HERE, 'stickers'),
+  dir: path.join(HERE, 'stickers-gemini-hakimi'),
   ...(rawCfg.stickers ?? {}),
 };
-const stickerDir = path.resolve(cfg.stickers.dir || path.join(HERE, 'stickers'));
+const stickerDir = path.resolve(cfg.stickers.dir || path.join(HERE, 'stickers-gemini-hakimi'));
 const stickerLibrary = new StickerLibrary(stickerDir);
 const stickerFiles = stickerLibrary.entries.map(row => row.file);
 
@@ -468,7 +468,7 @@ async function send(target, text, opts = {}) {
   }, valid);
 }
 
-/* ---------------- 大肥鱼表情包 ---------------- */
+/* ---------------- Gemini 哈基咪表情包 ---------------- */
 const STICKER_KEYWORDS = [
   ['laugh', ['哈哈', '笑', '草', '乐', '绷', '典', '难绷']],
   ['angry', ['滚', '烦', '气', '骂', '傻', '蠢', '闭嘴', '急']],
@@ -554,7 +554,7 @@ function helpText() {
     '/额度 或 /quota — 查看本周额度',
     '/status 或 /bot-status — 查看 Antigravity/OneBot 状态',
     '/ping 或 /bot-ping — 延迟检测',
-    '/表情包 [编号/场景] — 发一张大肥鱼表情包（如：摸鱼、疑惑、10N01）',
+    '/表情包 [编号/场景] — 发一张 Gemini 哈基咪表情包（如：摸鱼、疑惑、G01）',
     '/日记 内容 — 主人写一条今天的长期记忆',
     '/空间 [开|关] — 主人私聊查看或暂停自主说说',
     ...(fish ? ['/鱼 — 查看养成菜单（主人私聊）'] : []),
@@ -650,7 +650,7 @@ async function handleCommand(text, ev, target, isGroup) {
         `Antigravity: ${rs.ready ? '已收到模型回复' : '等待桥接完成首轮回复'}`,
         `OneBot: ${ws?.readyState === 1 ? 'connected' : 'disconnected'}`,
         `图片理解: ${cfg.vision.enabled ? '已开启（原生图片输入）' : '未开启'}`,
-        `大肥鱼表情: ${cfg.stickers.enabled ? `${stickerFiles.length} 张，按语境选择` : '关闭'}`,
+        `Gemini 表情: ${cfg.stickers.enabled ? `${stickerFiles.length} 张，按语境选择` : '关闭'}`,
         `空间说说: ${qzone.enabled() ? '自主决定，不要求日更' : '暂停'}`,
         '本机操作: 未接通',
         `最近事件: ${health.lastEventAt ? `${secondsAgo(health.lastEventAt)} 秒前` : '-'}`,

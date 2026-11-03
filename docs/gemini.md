@@ -17,3 +17,10 @@
 ## Scheduled public reading and publishing
 
 The optional shared social module is loaded from a private bridge/social.config.json. It keeps this bot’s task state, public memory and interests separate, uses an explicitly authorized platform account, and never grants additional QQ/desktop permissions. A subscription-only deployment must explicitly disable extra AI credits and use bounded requests. The current CLI has no verified provider-side output-token limit. See [the social module handoff](social.md). The disabled configuration example contains no account or credentials.
+
+
+## Gemini 专属表情图库
+
+Gemini 默认使用桥接目录下的 stickers-gemini-hakimi，运行配置的 stickers.dir 可指定独立本地目录。图库与 DeepSeek 分离；不要把路径指向 DS 图库，也不要复制 DS 素材作为 Gemini 默认表情。catalog.json 保存检索 ID、台词、画面描述、情绪、适用场景和来源信息。模型只拿到描述和不透明 ID，通过现有检索/发送工具选择；群聊权限、每轮上限和冷却保持原有规则。
+
+图片、实际图库目录、私有运行配置及本机交接不进入 Git。素材出处和授权状态须在本机保留；聊天梗图不自动成为公开平台原创素材。保持原有随机发送概率设置，不为了安装图库发送 QQ 测试消息。

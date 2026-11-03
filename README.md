@@ -10,3 +10,5 @@
 Gemini 的 `bridge/vendor/dsh-fish` 是本机联接，指向 `qq-src/vendor/dsh-fish`。克隆后请自行建立该目录联接或复制依赖到对应位置。第三方来源见 [THIRD_PARTY_NOTICES.md](ds-QQ/THIRD_PARTY_NOTICES.md)。
 
 [维护与本机数据](docs/maintenance.md)。
+
+[Scheduled public reading and original publishing](docs/social.md) uses separate bot state and an explicit shared-account publication ledger; private bindings and profiles are not included.

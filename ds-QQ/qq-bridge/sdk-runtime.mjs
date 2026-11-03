@@ -169,6 +169,8 @@ export class SdkRuntime {
       this.#request('session/prompt', { sessionId, requestId: s.requestId,
         access: ['owner', 'fish'].includes(options.access) ? options.access : 'chat', contextToken: options.contextToken ?? '',
         ownerTools: options.ownerTools === true,
+        memoryConsolidation: options.memoryConsolidation === true,
+        socialJsonOnly: options.socialJsonOnly === true,
         qzoneAllowed: options.qzoneAllowed === true,
         ...(options.qzoneContext ? { qzoneContext: options.qzoneContext } : {}),
         ...(options.identity ? { identity: options.identity } : {}),

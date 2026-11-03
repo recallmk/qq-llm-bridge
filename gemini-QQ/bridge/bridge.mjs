@@ -23,6 +23,7 @@ import {
 } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { SocialService } from '../../social/service.mjs';
 import { AntigravityRuntime } from './agy-runtime.mjs';
 import { weekKey } from './quota.mjs';
 import { appendToBatch, debounceDelay, buildChatPrompt, interpretReply, avoidAutomaticSticker } from './conversation.mjs';
@@ -37,6 +38,7 @@ import { QzoneService, qzonePrompt } from './qzone.mjs';
 import { StickerLibrary } from './stickers.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+let social = null;
 const CFG_PATH = path.join(HERE, 'config.json');
 const USAGE_PATH = path.join(HERE, 'usage.json');
 const TOKEN_PATH = path.join(HERE, 'control-token.txt');
@@ -712,6 +714,7 @@ async function handleCommand(text, ev, target, isGroup) {
 
 /* ---------------- 提示词组装 / 防抖 ---------------- */
 function scheduleTurn(key, target, text, meta) {
+  social?.yieldToForeground();
   const p = appendToBatch(pendingTurns.get(key), text, meta);
   p.target = target;
   pendingTurns.set(key, p);
@@ -1037,8 +1040,14 @@ async function startControl() {
       port: Number(cfg.control.port) || 3102,
       token,
       handlers: {
+        socialStatus: () => social ? social.status() : { enabled: false, reason: '社交模块未加载，请检查配置' },
+        socialControl: body => { if (!social) throw new Error('社交模块未加载'); return social.control(body); },
         authorize: (token, pathname) => {
           if (!token && pathname === '/status') return undefined; // Local token-authenticated diagnostics only.
+          if (pathname.startsWith('/social/')) {
+            if (token) throw Object.assign(new Error('社交管理仅向本机管理员开放'), { statusCode: 403 });
+            return { admin: true };
+          }
           if (pathname.startsWith('/fish/') && pathname !== '/fish/tool') {
             if (token) throw Object.assign(new Error('养成观测仅向本机管理端开放'), { statusCode: 403 });
             return { admin: true };
@@ -1060,6 +1069,7 @@ async function startControl() {
               postedToday: qzone.status().postedToday, lastDecision: qzone.status().lastDecision },
             computerControl: { enabled: false },
             onebot: {
+              selfId: String(selfId.value || ''),
               connected: ws?.readyState === 1,
               heartbeat: hbAgo === null ? '未收到' : `${hbAgo} 秒前${health.heartbeat.good === null ? '' : health.heartbeat.good ? '，good' : '，good=false'}`,
               lastEventSeconds: secondsAgo(health.lastEventAt),
@@ -1067,6 +1077,7 @@ async function startControl() {
             allow: scope && scope.access !== 'owner'
               ? { groups: scope.type === 'group' ? [scope.id] : [], users: scope.type === 'private' ? [scope.id] : [] }
               : { groups: cfg.allowGroups, users: cfg.allowUsers },
+            social: { enabled: Boolean(social), busy: social?.busy ?? false, console: '/social', lastError: social?.lastError || '' },
             sessions: sessionRegistry.sessions.size,
             queuedTurns: [...queueDepths.values()].reduce((sum, n) => sum + n, 0),
             outgoingMessages: sendQueue.pending,
@@ -1320,8 +1331,46 @@ async function onMessage(ev) {
 const healthTimer = setInterval(checkHealth, 60_000);
 healthTimer?.unref?.();
 let closing = false;
+
+if (existsSync(path.join(HERE, 'social.config.json'))) {
+  try {
+    social = new SocialService({ bridgeRoot: HERE, log,
+      notifyAdmin: async notice => {
+        if (!cfg.ownerQq[0] || closing) return false;
+        const message = notice.botName + ' 的社交计划需要处理：\n' + notice.reports.map(r => r.code + '：' + r.message).join('\n') + '\n本机状态：http://127.0.0.1:3103/social';
+        return onebotOk(await send({ user: cfg.ownerQq[0] }, message, { remember: false, valid: () => !closing }));
+      },
+      isForegroundBusy: () => closing || activeScopes.size > 0 || pendingTurns.size > 0 || [...queueDepths.values()].some(n => n > 0) || sendQueue.pending > 0,
+      otherBackgroundSpent: async () => Math.max(0, (await fish?.backgroundSpent?.() || 0) - (social?.spentToday() || 0)),
+      seedTopics: async () => {
+        if (!fish || !cfg.ownerQq[0]) return [];
+        const scene = 'p-' + cfg.ownerQq[0];
+        const info = await fish.companion.inspect(scene);
+        const local = await fish.companion.recall(scene, { limit: 4 });
+        return [...(info.personality || []).map(p => p.topic), ...(local.continuity || []).filter(r => r.type === 'unfinished').map(r => r.topic)];
+      },
+      model: async (prompt, options) => {
+        const sid = 'qq2-social-' + newToken(); let release;
+        try {
+          const result = await runtime.prompt(sid, prompt, 60000, {
+            access: 'fish', contextToken: '', socialJsonOnly: true, jsonOnly: true, persist: false,
+            identity: readFileSync(path.join(HERE, 'persona.md'), 'utf8'),
+            ownerTools: false, qzoneAllowed: false, maxTokens: options.maxTokens,
+            maxOutputChars: options.maxOutputChars, subscriptionOnly: options.subscriptionOnly,
+            signal: options.signal,
+          });
+          const cost = turnCost(result.usage); record(cfg.ownerQq[0], cost, result.usage);
+          return { ...result, costCny: cost };
+        } finally {  }
+      },
+    }).start();
+    if (fish) { fish.publicContext = query => social.context(query); fish.externalBackgroundSpent = () => social.spentToday(); }
+    log('社交日程已加载；独立任务、来源与记忆；本机状态 /social；不立即触发浏览或发布');
+  } catch (error) { log('社交模块未加载，QQ继续运行：', error.message); }
+}
+
 const fishTimer = fish && Number(cfg.fish.dailyBudgetCny) > 0 ? setInterval(() => {
-  if (closing || activeScopes.size || queues.has('fish-background')) return;
+  if (closing || social?.busy || activeScopes.size || queues.has('fish-background')) return;
   const owner = cfg.ownerQq[0];
   if (owner) void enqueue('fish-background', () => wakeFish(owner)).catch((e) => log('养成后台:', e.message));
 }, 60_000) : null;
@@ -1338,6 +1387,7 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
     for (const p of pendingTurns.values()) if (p.timer) clearTimeout(p.timer);
     for (const timer of attentionTimers.values()) clearTimeout(timer);
     try { await controlServer?.close?.(); } catch { /* ignore */ }
+    try { await social?.stop(); } catch { /* ignore */ }
     try { await runtime.stop(); } catch { /* ignore */ }
     try { await fish?.companion?.drain(); } catch { /* ignore */ }
     try { await qqImages.drain(); } catch { /* ignore */ }

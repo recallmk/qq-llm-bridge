@@ -4,7 +4,7 @@ export const QQ_TOOL_NAMES = ['qq_status', 'qq_list_groups', 'qq_recent_messages
 // A harmless baseline tool must remain immediately available when older DSH histories
 // introduce QQ tools through deferred tool additions. It only changes this session's TODOs.
 export const CHAT_TOOL_NAMES = [...QQ_TOOL_NAMES, 'todo_write'];
-export const FISH_CHAT_TOOL_NAMES = [...CHAT_TOOL_NAMES, 'growth_commit', 'her_recall', 'her_leave', 'bili_look', 'companion_remember', 'companion_recall'];
+export const FISH_CHAT_TOOL_NAMES = [...CHAT_TOOL_NAMES, 'growth_commit', 'her_recall', 'her_leave', 'bili_look', 'companion_remember', 'companion_recall', 'companion_continuity'];
 
 export function targetAllowed(cfg, type, id) {
   id = String(id);

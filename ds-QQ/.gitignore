@@ -29,6 +29,8 @@
 !/qq-bridge/control-api.mjs
 !/qq-bridge/control-api.test.mjs
 !/qq-bridge/conversation.mjs
+!/qq-bridge/conversation-state.mjs
+!/qq-bridge/experience-planner.mjs
 !/qq-bridge/conversation.test.mjs
 !/qq-bridge/desktop-control.ps1
 !/qq-bridge/dsh-qq-server.js

@@ -189,7 +189,7 @@ export class FishService {
   async refresh(id, data) {
     const current = data ?? await this.ensure(id);
     const common = await this.companion.context(id, this.contextHints.get(id));
-    const identity = `${this.identity(current.events, current.config)}\n\n${common}`;
+    const identity = `${this.identity(current.events, current.config)}\n\n${common}\n\n${this.publicContext?.(this.contextHints.get(id)?.query || '') || ''}`;
     await writeAtomic(path.join(current.root, 'home', '她的身份.md'), identity);
     await rebuild(current.root, { now: this.now().getTime(), growthDays: current.config.growthDays });
     return identity;
@@ -310,6 +310,15 @@ export class FishService {
   todayCost(events) {
     const prefix = `qq-cost:${dateKey(this.now())}:`;
     return events.filter((e) => e.type === 'meta' && e.text.startsWith(prefix)).reduce((sum, e) => sum + (Number(e.text.slice(prefix.length)) || 0), 0);
+  }
+  async backgroundSpent() {
+    let spent = Math.max(0, Number(this.externalBackgroundSpent?.()) || 0);
+    for (const id of await this.knownChats()) {
+      const { events, skipped } = await readEvents(this.directory(id));
+      if (skipped) throw new Error('后台费用记录无法完整读取，暂停新任务');
+      spent += this.todayCost(events);
+    }
+    return spent;
   }
   memory(id, query) {
     return this.serial(id, async () => {

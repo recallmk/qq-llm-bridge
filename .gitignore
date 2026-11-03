@@ -24,3 +24,18 @@
 **/.env
 **/.env.*
 **/*.log
+
+# Public social worker sources only; all local profiles, configs and ledgers remain ignored.
+!/social/
+/social/*
+!/social/*.mjs
+!/social/*.html
+!/social/config.example.json
+!/social/README.md
+!/docs/social.md
+
+# Explicit protection for social account state and local backups.
+**/social.config.json
+**/social-data/
+/.social-shared/
+/.social-backups/

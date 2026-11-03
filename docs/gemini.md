@@ -13,3 +13,7 @@
 5. 观测台默认 `http://127.0.0.1:3103/fish`，token 保存在 `bridge/control-token.txt`，请勿分享。服务必须保持本机访问。
 
 示例默认关闭群聊、工具、表情、空间和成长功能。Antigravity CLI 的图片输入在此实现中尚未接通；需自行提供依赖并核对登录及连接状态。仓库没有包含原机器的启动器、代理、表情资源或账号数据。
+
+## Scheduled public reading and publishing
+
+The optional shared social module is loaded from a private bridge/social.config.json. It keeps this bot’s task state, public memory and interests separate, uses an explicitly authorized platform account, and never grants additional QQ/desktop permissions. A subscription-only deployment must explicitly disable extra AI credits and use bounded requests. The current CLI has no verified provider-side output-token limit. See [the social module handoff](social.md). The disabled configuration example contains no account or credentials.

@@ -56,13 +56,17 @@ export class AntigravityRuntime {
     const intro = [persona, options.identity, GROUP_CHAT_POLICY, options.situation, options.qzoneContext].filter(Boolean).join('\n\n');
     const prompt = `${intro}\n\n${text}`;
     const args = ['--input-format', 'stream-json', '--output-format', 'stream-json'];
-    const previous = this.saved[sessionId];
+    if (options.jsonOnly) args.push('--disable-slash-commands', '--settings', JSON.stringify({
+      useG1Credits: false, allowNonWorkspaceAccess: false,
+      permissions: { allow: [], ask: [], deny: ['command(*)', 'read_file(*)', 'write_file(*)', 'read_url(*)', 'execute_url(*)', 'mcp(*)', 'mcp(*/*)', 'agent(*)'] },
+    }));
+    const previous = options.persist === false ? undefined : this.saved[sessionId];
     if (previous?.id) args.push('--conversation', previous.id);
     const home = this.cfg.home;
     const env = { ...process.env, USERPROFILE: home, HOME: home, HOMEDRIVE: home.slice(0, 2), HOMEPATH: home.slice(2),
       APPDATA: path.join(home, 'AppData', 'Roaming'), LOCALAPPDATA: path.join(home, 'AppData', 'Local'),
       TEMP: path.join(path.dirname(home), '.tmp'), TMP: path.join(path.dirname(home), '.tmp'), NODE_DISABLE_COMPILE_CACHE: '1',
-      QQ_TURN_CONTEXT: options.contextToken ?? '', QQ_TURN_ACCESS: options.access ?? 'chat',
+      QQ_TURN_CONTEXT: options.jsonOnly ? '' : options.contextToken ?? '', QQ_TURN_ACCESS: options.access ?? 'chat',
       QQ_TURN_QZONE: options.qzoneAllowed === true ? '1' : '0',
       HTTP_PROXY: this.cfg.proxy, HTTPS_PROXY: this.cfg.proxy, ALL_PROXY: this.cfg.proxy,
       NO_PROXY: 'localhost,127.0.0.1,::1' };
@@ -80,7 +84,14 @@ export class AntigravityRuntime {
       state.timer = setTimeout(() => { void this.cancelState(state, fault('回复超时，旧任务已取消', 'REPLY_TIMEOUT')); }, timeoutMs);
       child.stdout.setEncoding('utf8');
       child.stdout.on('data', chunk => {
+        state.outputChars = (state.outputChars || 0) + chunk.length;
+        if (options.jsonOnly && state.outputChars > (options.maxOutputChars || 10000) * 8) {
+          void this.cancelState(state, fault('社交流式输出超过应用层总字符上限', 'OUTPUT_LIMIT')); return;
+        }
         state.buffer += chunk;
+        if (options.jsonOnly && state.buffer.length > (options.maxOutputChars || 10000) * 8) {
+          void this.cancelState(state, fault('社交输出超过应用层文本上限', 'OUTPUT_LIMIT')); return;
+        }
         let pos;
         while ((pos = state.buffer.indexOf('\n')) >= 0) {
           const line = state.buffer.slice(0, pos).trim(); state.buffer = state.buffer.slice(pos + 1);
@@ -92,7 +103,15 @@ export class AntigravityRuntime {
               state.toolCalls.push({ name: String(s.tool_name), ok: !s.tool_info?.error });
             }
           }
-          if (event.event === 'result') state.result = event.result;
+          if (options.jsonOnly && event.event === 'step_update' && event.step_update?.step_type === 'tool') {
+            void this.cancelState(state, fault('社交回合禁止工具调用', 'TOOL_DENIED')); return;
+          }
+          if (event.event === 'result') {
+            if (options.jsonOnly && String(event.result?.response || '').length > (options.maxOutputChars || 10000)) {
+              void this.cancelState(state, fault('社交输出超过应用层文本上限', 'OUTPUT_LIMIT')); return;
+            }
+            state.result = event.result;
+          }
         }
       });
       child.stderr.setEncoding('utf8');
@@ -110,7 +129,7 @@ export class AntigravityRuntime {
         }
         const id = String(result.conversation_id || state.conversationId || '');
         if (!/^[0-9a-f-]{36}$/i.test(id)) { this.settle(state, fault('未取得可续接的 Antigravity 会话', 'PROMPT_UNCERTAIN')); return; }
-        try { this.saved[sessionId] = { id }; this.save(); }
+        try { if (options.persist !== false) { this.saved[sessionId] = { id }; this.save(); } }
         catch { this.settle(state, fault('会话映射保存失败，本轮未转发', 'PROMPT_UNCERTAIN')); return; }
         this.authenticated = true;
         const u = result.usage ?? {};

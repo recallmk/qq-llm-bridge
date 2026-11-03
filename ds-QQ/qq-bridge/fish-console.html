@@ -56,11 +56,16 @@ async function refresh(){
   entries('stances',s.stances.map(s=>s.text),'还在经历与修正中。');
   const labels={favor:'偏喜欢／赞同',against:'偏不喜欢／不赞同',mixed:'有喜欢的部分，也有保留',undecided:'还在了解'};
   entries('personality',(s.companion?.personality||[]).map(p=>`${p.topic}：${labels[p.stance]} · ${p.settled?'逐渐稳定':'初步倾向'}${p.reconsidering?' · 正在重新考虑':''}`),'还没有共同倾向，先多经历一些事。');
-  $('companionCounts').textContent=`当前场景：${s.companion?.memories||0} 条分类记忆，${s.companion?.observations||0} 条原话来源`;
+  $('companionCounts').textContent=`当前场景：${s.companion?.memories||0} 条分类记忆，${s.companion?.observations||0} 条原话来源，${Math.max(0,(s.companion?.observations||0)-(s.companion?.unprocessed??s.companion?.observations??0))} 条已处理，${s.companion?.unprocessed??'—'} 条待整理，${s.companion?.continuity||0} 条有效续接事项`;
   $('wakes').value=s.settings.wakesPerDay;$('start').value=s.settings.window[0];$('end').value=s.settings.window[1];
   $('browse').checked=s.settings.browse;$('browseDay').value=s.settings.browsePerDay;$('visible').checked=s.diaryVisible;
   const bg=s.background;
-  if(bg){$('gate').textContent+=` · 后台今日 ${bg.usedToday}/${bg.maxPerDay} 次 · ${bg.reason}`;}
+  if(bg){
+    $('gate').textContent+=` · 自主醒来 ${bg.usedToday}/${bg.maxPerDay} 次 · ${bg.reason}`;
+    const maintenance=bg.maintenance;
+    if(maintenance)$('gate').textContent+=` · 内部整理 ${maintenance.usedToday}/${maintenance.maxPerDay} 次，成功 ${maintenance.completedToday||0} 次，失败 ${maintenance.failedToday||0} 次，今日处理 ${maintenance.processedSourcesToday||0} 条 · ${maintenance.reason}（共享费用预算可能降低吞吐）`;
+  }
+  if(s.publicQuota?.exhausted)$('gate').textContent+=` · 公共周额度已耗尽（¥${s.publicQuota.spentCny.toFixed(3)}/¥${s.publicQuota.limitCny}），普通群消息受拦截；主人沿用现有豁免。这类安静不代表自主静默。`;
   message('已更新 · '+new Date().toLocaleTimeString('zh-CN'));
 }
 function act(id,fn){$(id).addEventListener('click',async()=>{const button=$(id);button.disabled=true;try{await fn();}catch(e){if(e.name!=='AbortError')message(e.message,true);}finally{button.disabled=false;}});}

@@ -13,7 +13,7 @@ import { readFile } from 'node:fs/promises';
 
 const MAX_BODY = 64 * 1024;
 const CONSOLE_TTL_MS = 12 * 60 * 60 * 1000;
-const CONSOLE_ROUTES = new Set(['/fish/chats', '/fish/status', '/fish/memory', '/fish/diary', '/fish/inbox', '/fish/settings']);
+const CONSOLE_ROUTES = new Set(['/social/status', '/social/control', '/fish/chats', '/fish/status', '/fish/memory', '/fish/diary', '/fish/inbox', '/fish/settings']);
 
 export function newToken() {
   return randomBytes(16).toString('hex');
@@ -98,6 +98,15 @@ export function startControlServer({ token, handlers, port = 3102, host = '127.0
         return res.end(page);
       } catch { return json(res, 503, { ok: false, error: '观测台暂时不可用' }); }
     }
+    if (req.method === 'GET' && (url.pathname === '/social' || url.pathname === '/social/')) {
+      try {
+        const page = await readFile(new URL('../../social/console.html', import.meta.url));
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': page.length,
+          'cache-control': 'no-store', 'x-content-type-options': 'nosniff',
+          'content-security-policy': "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; form-action 'none'" });
+        return res.end(page);
+      } catch { return json(res, 503, { ok: false, error: '社交状态页暂不可用' }); }
+    }
     cleanConsoleSessions();
     const masterAccess = sameToken(req.headers['x-qq-token'], token);
     const consoleAccess = consoleSessions.has(req.headers['x-qq-token']);
@@ -111,6 +120,8 @@ export function startControlServer({ token, handlers, port = 3102, host = '127.0
       if (req.method === 'GET' && url.pathname === '/status') {
         return json(res, 200, { ok: true, ...(await handlers.status(context)) });
       }
+      if (req.method === 'GET' && url.pathname === '/social/status' && handlers.socialStatus) return json(res, 200, { ok: true, ...await handlers.socialStatus(context) });
+      if (req.method === 'POST' && url.pathname === '/social/control' && handlers.socialControl) return json(res, 200, await handlers.socialControl(await readJson(req), context));
       if (req.method === 'GET' && url.pathname === '/groups') {
         return json(res, 200, { ok: true, ...(await handlers.groups(context)) });
       }

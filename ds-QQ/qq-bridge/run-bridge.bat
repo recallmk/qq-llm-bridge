@@ -5,6 +5,7 @@ for %%I in ("%~dp0..") do set "DS_PROJECT=%%~fI"
 set "DSH_HOME=%DS_PROJECT%\.dsh"
 set "TEMP=%DS_PROJECT%\.tmp"
 set "TMP=%TEMP%"
+set "NODE_DISABLE_COMPILE_CACHE=1"
 :loop
 if exist "%~dp0.migration-in-progress" exit /b 0
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0cleanup-runtime.ps1" >> "%~dp0bridge.log" 2>&1

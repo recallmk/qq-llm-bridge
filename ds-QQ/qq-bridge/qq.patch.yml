@@ -9,7 +9,8 @@
 - id: llm-deepseek
   config:
     apiKeyEnv: DSH_QQ_API_KEY
-    baseURL: https://api.deepseek.com
+    # The active SDK uses Messages; its adapter appends /v1/messages.
+    baseURL: https://api.deepseek.com/anthropic
 
 - id: approval
   config:

@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "enabled": false,
+  "botId": "deepseek",
+  "botName": "Your bot",
+  "timeZone": "America/Los_Angeles",
+  "window": [
+    "20:00",
+    "23:00"
+  ],
+  "browseAt": "20:10",
+  "browsePaused": true,
+  "publishPaused": true,
+  "publish": {
+    "weekday": 3,
+    "at": "21:00",
+    "retryWeekday": 6,
+    "retryAt": "21:00",
+    "creatorRotation": [
+      "deepseek",
+      "gemini"
+    ],
+    "fallbackAfter": "21:40"
+  },
+  "sharedRoot": "D:\\Agent-project\\ds\\.social-shared",
+  "browser": {
+    "executable": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+  },
+  "accounts": [],
+  "disabledPlatforms": [
+    "douyin"
+  ],
+  "limits": {
+    "itemsPerPlatform": 6,
+    "taskMinutes": 15,
+    "modelCallsPerDay": 6,
+    "inputTokensPerCall": 28000,
+    "outputTokensPerCall": 3072,
+    "outputCharsPerCall": 10000,
+    "imageInputsPerDay": 0,
+    "videoSecondsPerDay": 0,
+    "generatedImagesPerPost": 3,
+    "mediaBytesPerPost": 16777216,
+    "seenKeepDays": 30,
+    "notesKeepDays": 7
+  },
+  "budget": {
+    "dailyCny": 0.15,
+    "weeklyCny": 0.8,
+    "sharedBackgroundDailyCny": 0.2
+  },
+  "billing": {
+    "known": false,
+    "currency": "CNY",
+    "inputPerMillion": null,
+    "outputPerMillion": null,
+    "cacheReadPerMillion": null
+  },
+  "reportMode": "local-and-private-owner"
+}

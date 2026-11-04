@@ -772,12 +772,13 @@ async function askModel(key, promptText, scope) {
   for (let attempt = 0; ; attempt++) {
     if (scope.cancelled || scope.controller.signal.aborted || sid !== sessionIdOf(key)) throw cancelledError();
     try {
-      const result = await runtime.prompt(sid, promptText, cfg.replyTimeoutMs, {
+      const result = await runtime.promptWithStartupRetry(sid, promptText, cfg.replyTimeoutMs, {
         access: scope.access, contextToken: scope.token, signal: scope.controller.signal,
         ownerTools: scope.ownerTools === true,
         qzoneAllowed: scope.qzoneAllowed === true, qzoneContext: scope.qzoneContext,
         identity: scope.identity,
         images: scope.images,
+        onStartupRetry: event => log('Antigravity 启动校验网络中断（' + event.reason + '），确认未进入模型；' + event.delayMs + 'ms 后仅重连一次'),
         onCancel: () => { scope.cancelled = true; },
       });
       return { result, sid };
@@ -1060,7 +1061,8 @@ async function startControl() {
           return {
             dsh: { ready: rs.ready, pid: rs.pid, restarts: rs.restarts, activeTurns: rs.activeTurns,
               closingProcesses: rs.closingProcesses, cachedConversations: rs.cachedConversations,
-              lastSuccessAt: rs.lastSuccessAt, lastFailure: rs.lastFailure, lastWarning: rs.lastWarning },
+              lastSuccessAt: rs.lastSuccessAt, lastFailure: rs.lastFailure, lastWarning: rs.lastWarning,
+              lastStartupRetry: rs.lastStartupRetry },
             vision: { enabled: cfg.vision.enabled, maxImages: 4, maxImageBytes: cfg.vision.maxImageBytes },
             stickers: { enabled: cfg.stickers.enabled, count: stickerFiles.length,
               animated: stickerFiles.filter(file => file.toLowerCase().endsWith('.gif')).length, cooldownSeconds: cfg.stickers.cooldownSeconds },

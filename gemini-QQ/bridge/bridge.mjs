@@ -647,7 +647,7 @@ async function handleCommand(text, ev, target, isGroup) {
       const hb = health.heartbeat;
       const hbAgo = secondsAgo(hb.at);
       const lines = [
-        `Antigravity: ${rs.ready ? '已收到模型回复' : '等待桥接完成首轮回复'}`,
+        `Antigravity: ${rs.lastFailure ? rs.lastFailure.message : rs.ready ? '本次运行已收到模型完整回复' : '本次运行尚未核验模型回复'}`,
         `OneBot: ${ws?.readyState === 1 ? 'connected' : 'disconnected'}`,
         `图片理解: ${cfg.vision.enabled ? '已开启（原生图片输入）' : '未开启'}`,
         `Gemini 表情: ${cfg.stickers.enabled ? `${stickerFiles.length} 张，按语境选择` : '关闭'}`,
@@ -878,13 +878,10 @@ async function processTurn(key, batch) {
     }
   } catch (e) {
     if (scope.controller.signal.aborted || e.code === 'CANCELLED' || scope.sessionId !== sessionIdOf(key)) return;
-    log('失败:', e.message);
-    if (meta.direct || !meta.isGroup) {
-      const hint = /AUTH|invalid|401/.test(e.message)
-        ? '模型凭证无效：请检查 config.json 的 provider/model。'
-        : e.message;
-      await send(target, `出错了：${hint}`.slice(0, 300));
-    }
+    log('失败:', '[' + (e.code || 'TURN_ERROR') + ']', e.message);
+    // Do not add another error message after a delivered or uncertain text tool call.
+    if (scope.sentMessages > 0 || scope.uncertainDelivery) return;
+    if (meta.direct || !meta.isGroup) await send(target, `出错了：${e.message}`.slice(0, 300));
   } finally {
     if (isFish && scope.completed && valid()) {
       await fish.rememberExchange?.(scope.fishId, texts.join('\n'), scope.replyForCarry ?? '').catch((e) => log('最近对话留存失败:', e.message));
@@ -1060,7 +1057,9 @@ async function startControl() {
           const rs = runtime.status();
           const hbAgo = secondsAgo(health.heartbeat.at);
           return {
-            dsh: { ready: rs.ready, pid: rs.pid, restarts: rs.restarts },
+            dsh: { ready: rs.ready, pid: rs.pid, restarts: rs.restarts, activeTurns: rs.activeTurns,
+              closingProcesses: rs.closingProcesses, cachedConversations: rs.cachedConversations,
+              lastSuccessAt: rs.lastSuccessAt, lastFailure: rs.lastFailure },
             vision: { enabled: cfg.vision.enabled, maxImages: 4, maxImageBytes: cfg.vision.maxImageBytes },
             stickers: { enabled: cfg.stickers.enabled, count: stickerFiles.length,
               animated: stickerFiles.filter(file => file.toLowerCase().endsWith('.gif')).length, cooldownSeconds: cfg.stickers.cooldownSeconds },

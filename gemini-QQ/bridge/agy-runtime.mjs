@@ -1,8 +1,9 @@
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { atomic, stamp } from '../../social/io.mjs';
+import { atomic, stamp, dPath } from '../../social/io.mjs';
 import { GROUP_CHAT_POLICY } from './conversation.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -22,6 +23,7 @@ export class AntigravityRuntime {
     this.authenticated = false;
     this.lastSuccessAt = null;
     this.lastFailure = null;
+    this.lastWarning = null;
     this.storePath = path.join(HERE, 'antigravity-sessions.json');
     try {
       const value = JSON.parse(readFileSync(this.storePath, 'utf8').replace(/^\uFEFF/, ''));
@@ -43,7 +45,7 @@ export class AntigravityRuntime {
       ready: this.authenticated && !this.lastFailure && !this.stopping,
       pid: null, restarts: 0, activeTurns: this.sessions.size,
       closingProcesses: this.draining.size, cachedConversations: Object.keys(this.saved).length,
-      lastSuccessAt: this.lastSuccessAt, lastFailure: this.lastFailure };
+      lastSuccessAt: this.lastSuccessAt, lastFailure: this.lastFailure, lastWarning: this.lastWarning };
   }
   save() { atomic(this.storePath, { version: 1, sessions: this.saved }); }
   diagnostic(state, outcome) {
@@ -55,6 +57,7 @@ export class AntigravityRuntime {
           lastEvent: state.lastEvent, terminalStatus: state.result?.status ?? null,
           responseChars: typeof state.result?.response === 'string' ? state.result.response.length : 0,
           parsedTail: state.parsedTail === true },
+        verification: state.currentReplyVerification ?? null,
         toolCalls: state.toolCalls.map(t => ({ name: t.name.slice(0, 120), ok: t.ok })).slice(-24),
       });
     } catch { /* Diagnostic storage must never drop an otherwise valid reply. */ }
@@ -92,7 +95,7 @@ export class AntigravityRuntime {
     const intro = [persona, options.identity, GROUP_CHAT_POLICY, options.situation, options.qzoneContext].filter(Boolean).join('\n\n');
     const prompt = intro + '\n\n' + text;
     const args = ['--input-format', 'stream-json', '--output-format', 'stream-json'];
-    if (options.jsonOnly) args.push('--disable-slash-commands', '--settings', JSON.stringify({
+    if (options.jsonOnly || options.noTools) args.push('--disable-slash-commands', '--settings', JSON.stringify({
       useG1Credits: false, allowNonWorkspaceAccess: false,
       permissions: { allow: [], ask: [], deny: ['command(*)', 'read_file(*)', 'write_file(*)', 'read_url(*)', 'execute_url(*)', 'mcp(*)', 'mcp(*/*)', 'agent(*)'] },
     }));
@@ -102,7 +105,7 @@ export class AntigravityRuntime {
     const env = { ...process.env, USERPROFILE: home, HOME: home, HOMEDRIVE: home.slice(0, 2), HOMEPATH: home.slice(2),
       APPDATA: path.join(home, 'AppData', 'Roaming'), LOCALAPPDATA: path.join(home, 'AppData', 'Local'),
       TEMP: path.join(path.dirname(home), '.tmp'), TMP: path.join(path.dirname(home), '.tmp'), NODE_DISABLE_COMPILE_CACHE: '1',
-      QQ_TURN_CONTEXT: options.jsonOnly ? '' : options.contextToken ?? '', QQ_TURN_ACCESS: options.access ?? 'chat',
+      QQ_TURN_CONTEXT: options.jsonOnly || options.noTools ? '' : options.contextToken ?? '', QQ_TURN_ACCESS: options.access ?? 'chat',
       QQ_TURN_QZONE: options.qzoneAllowed === true ? '1' : '0',
       HTTP_PROXY: this.cfg.proxy, HTTPS_PROXY: this.cfg.proxy, ALL_PROXY: this.cfg.proxy,
       NO_PROXY: 'localhost,127.0.0.1,::1' };
@@ -115,6 +118,7 @@ export class AntigravityRuntime {
       const state = { child, sessionId, options, resolve, reject, settled: false, cancelling: false,
         buffer: '', result: null, conversationId: previous?.id ?? '', toolCalls: [], stderr: '',
         frames: 0, invalidLines: 0, lastEvent: null, closed: false,
+        resumedConversationId: previous?.id ?? '', inputStep: null, steps: new Map(),
         closedPromise: new Promise(r => { resolveClosed = r; }) };
       this.sessions.set(sessionId, state);
       const onAbort = () => { void this.cancelState(state, fault('本轮已取消', 'CANCELLED')); };
@@ -131,11 +135,20 @@ export class AntigravityRuntime {
         if (event.event === 'init' && event.conversation_id) state.conversationId = event.conversation_id;
         if (event.event === 'step_update') {
           const s = event.step_update ?? {};
+          if (Number.isInteger(s.step_index) && (!s.conversation_id || s.conversation_id === state.conversationId)) {
+            const row = state.steps.get(s.step_index) ?? { index: s.step_index, text: '', doneText: '', error: false };
+            row.type = s.step_type; row.state = s.state; row.error ||= Boolean(s.tool_info?.error || s.error);
+            if (s.step_type === 'user_input') state.inputStep = Math.max(state.inputStep ?? -1, s.step_index);
+            if (s.step_type === 'agent_response' && typeof s.text_delta === 'string') {
+              row.text += s.text_delta; if (s.state === 'DONE') row.doneText = s.text_delta;
+            }
+            state.steps.set(s.step_index, row);
+          }
           if (s.step_type === 'tool' && s.state === 'DONE') {
             const name = s.tool_info?.name || s.tool_name;
             if (name) state.toolCalls.push({ name: String(name), ok: !s.tool_info?.error });
           }
-          if (options.jsonOnly && s.step_type === 'tool') {
+          if ((options.jsonOnly || options.noTools) && s.step_type === 'tool') {
             void this.cancelState(state, fault('社交回合禁止工具调用', 'TOOL_DENIED')); return;
           }
         }
@@ -189,15 +202,49 @@ export class AntigravityRuntime {
       if (options.signal?.aborted) onAbort();
     });
   }
+  completedReplyWithHistoricalErrors(state, id) {
+    // Compatibility for resumed CLI conversations whose overall ERROR includes old failed steps.
+    // Automation/JSON tasks always require an actual provider SUCCESS.
+    if (state.options.jsonOnly || !state.resumedConversationId || id !== state.resumedConversationId
+      || id !== state.conversationId || !Number.isInteger(state.inputStep)
+      || !/^[0-9a-f-]{36}$/i.test(id) || typeof state.result.response !== 'string' || !state.result.response.trim()) return null;
+    const current = [...state.steps.values()].filter(s => s.index >= state.inputStep);
+    if (!current.length || current.some(s => s.state !== 'DONE' || s.error)) return null;
+    const final = current.filter(s => s.type === 'agent_response').sort((a, b) => b.index - a.index)[0];
+    if (!final || final.index <= state.inputStep) return null;
+    const response = state.result.response.trim().replace(/\r\n/g, '\n');
+    if (![final.text, final.doneText].some(s => s.trim().replace(/\r\n/g, '\n') === response)) return null;
+    if (current.some(s => s.index > final.index && s.type !== 'checkpoint')) return null;
+    let db;
+    try {
+      const file = dPath(path.join(this.cfg.home, '.gemini', 'antigravity-cli', 'conversations', id + '.db'));
+      db = new DatabaseSync(file, { readOnly: true });
+      const newest = db.prepare('SELECT max(idx) AS idx FROM steps').get().idx;
+      if (newest !== Math.max(...current.map(s => s.index))) return null;
+      const errors = db.prepare('SELECT idx FROM steps WHERE idx>=? AND length(error_details)>0').all(state.inputStep);
+      if (errors.length) return null;
+      const older = db.prepare('SELECT idx FROM steps WHERE idx<? AND length(error_details)>0').all(state.inputStep);
+      if (!older.length) return null;
+      // A transport, quota, authentication or interruption error is never an old-tool compatibility case.
+      const raw = state.result.error;
+      const reason = typeof raw === 'string' ? raw : JSON.stringify(raw ?? '');
+      if (/UNAUTHENTICATED|invalid_grant|unauthorized|authentication|required.*login|quota|RESOURCE_EXHAUSTED|429|deadline|timeout|timed out|network|connection|unavailable|CANCELED|INTERRUPTED|safety|filter|blocked/i.test(reason)) return null;
+      return { code: 'HISTORICAL_CONVERSATION_ERROR', inputStep: state.inputStep, responseStep: final.index,
+        completedSteps: current.length, historicalErrorSteps: older.map(r => r.idx).slice(-20) };
+    } catch { return null; }
+    finally { db?.close(); }
+  }
   finishResult(state) {
     if (state.settled || state.cancelling) return;
     const result = state.result;
-    if (result.status !== 'SUCCESS') {
+    const id = String(result.conversation_id || state.conversationId || '');
+    const compatibility = result.status === 'ERROR' ? this.completedReplyWithHistoricalErrors(state, id) : null;
+    state.currentReplyVerification = compatibility;
+    if (result.status !== 'SUCCESS' && !compatibility) {
       const error = this.failure(state);
       this.diagnostic(state, { code: error.code, phase: 'terminal_result' });
       this.beginDrain(state); this.settle(state, error); return;
     }
-    const id = String(result.conversation_id || state.conversationId || '');
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
       const error = fault('未取得可续接的 Antigravity 会话，本轮不会自动重发。', 'CLI_PROTOCOL');
       this.diagnostic(state, { code: error.code, phase: 'terminal_result' });
@@ -210,10 +257,12 @@ export class AntigravityRuntime {
       this.beginDrain(state); this.settle(state, error); return;
     }
     this.authenticated = true; this.lastSuccessAt = new Date().toISOString(); this.lastFailure = null;
+    this.lastWarning = compatibility ? { code: compatibility.code, message: 'CLI保留历史错误标记，本轮回复已按步骤和数据库核验。', at: this.lastSuccessAt } : null;
     const u = result.usage ?? {};
-    this.diagnostic(state, { code: 'SUCCESS', phase: 'terminal_result' });
+    this.diagnostic(state, { code: compatibility ? 'VERIFIED_REPLY_WITH_HISTORICAL_ERROR' : 'SUCCESS', phase: 'terminal_result' });
     this.beginDrain(state);
     this.settle(state, null, { text: String(result.response ?? ''), toolCalls: state.toolCalls,
+      providerStatus: result.status, completionWarning: compatibility?.code ?? null,
       usage: { inputTokens: Math.max(0, Number(u.input_tokens) || 0), outputTokens: Math.max(0, Number(u.output_tokens) || 0),
         cacheReadTokens: Math.max(0, Number(u.cache_read_tokens) || 0), cacheWriteTokens: 0 } });
   }

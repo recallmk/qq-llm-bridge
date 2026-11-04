@@ -833,6 +833,7 @@ async function processTurn(key, batch) {
       contextLimit: cfg.readAir.contextMessages, toolsEnabled: cfg.tools.enabled,
       visionEnabled: cfg.vision.enabled,
       stickersEnabled: cfg.stickers.enabled && stickerFiles.length > 0,
+      socialEnabled: Boolean(social),
       computerControl: scope.ownerTools,
       attachedImages: visual.attachedImages, imageWarnings: visual.warnings });
     const { result, sid } = await askModel(key, promptText, scope);

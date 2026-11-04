@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { setTimeout as delay } from 'node:timers/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
@@ -9,6 +10,17 @@ import { GROUP_CHAT_POLICY } from './conversation.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fault = (message, code) => Object.assign(new Error(message), { code });
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+const transportCause = text => {
+  if (/\bEOF\b/i.test(text)) return 'EOF';
+  if (/ECONNRESET|connection reset|forcibly closed/i.test(text)) return 'CONNECTION_RESET';
+  if (/ECONNREFUSED|connection refused|actively refused/i.test(text)) return 'CONNECTION_REFUSED';
+  if (/no such host|ENOTFOUND|EAI_AGAIN|name resolution/i.test(text)) return 'DNS';
+  if (/deadline exceeded|timed? ?out|timeout/i.test(text)) return 'TIMEOUT';
+  if (/TLS|certificate/i.test(text)) return 'TLS';
+  if (/proxy|unavailable|\b50[234]\b/i.test(text)) return 'NETWORK_UNAVAILABLE';
+  return null;
+};
 
 // Each submitted turn owns a CLI/MCP process and an independently verified QQ scope.
 export class AntigravityRuntime {
@@ -24,6 +36,7 @@ export class AntigravityRuntime {
     this.lastSuccessAt = null;
     this.lastFailure = null;
     this.lastWarning = null;
+    this.lastStartupRetry = null;
     this.storePath = path.join(HERE, 'antigravity-sessions.json');
     try {
       const value = JSON.parse(readFileSync(this.storePath, 'utf8').replace(/^\uFEFF/, ''));
@@ -45,7 +58,7 @@ export class AntigravityRuntime {
       ready: this.authenticated && !this.lastFailure && !this.stopping,
       pid: null, restarts: 0, activeTurns: this.sessions.size,
       closingProcesses: this.draining.size, cachedConversations: Object.keys(this.saved).length,
-      lastSuccessAt: this.lastSuccessAt, lastFailure: this.lastFailure, lastWarning: this.lastWarning };
+      lastSuccessAt: this.lastSuccessAt, lastFailure: this.lastFailure, lastWarning: this.lastWarning, lastStartupRetry: this.lastStartupRetry };
   }
   save() { atomic(this.storePath, { version: 1, sessions: this.saved }); }
   diagnostic(state, outcome) {
@@ -57,30 +70,97 @@ export class AntigravityRuntime {
           lastEvent: state.lastEvent, terminalStatus: state.result?.status ?? null,
           responseChars: typeof state.result?.response === 'string' ? state.result.response.length : 0,
           parsedTail: state.parsedTail === true },
+        submission: { queuedToCli: state.promptQueued === true, initSeen: state.initSeen === true,
+          inputObserved: Number.isInteger(state.inputStep), startupAttempt: state.options.startupAttempt ?? 0 },
+        failure: state.failureInfo ?? null,
         verification: state.currentReplyVerification ?? null,
         verificationFailure: state.verificationFailure ?? null,
         toolCalls: state.toolCalls.map(t => ({ name: t.name.slice(0, 120), ok: t.ok })).slice(-24),
       });
     } catch { /* Diagnostic storage must never drop an otherwise valid reply. */ }
   }
+  conversationHead(id) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id ?? '')) return null;
+    let db;
+    try {
+      const file = dPath(path.join(this.cfg.home, '.gemini', 'antigravity-cli', 'conversations', id + '.db'));
+      db = new DatabaseSync(file, { readOnly: true });
+      const head = db.prepare('SELECT max(idx) AS idx FROM steps').get().idx;
+      return Number.isInteger(head) ? head : -1;
+    } catch { return null; }
+    finally { db?.close(); }
+  }
+  startupFailure(state, explicit) {
+    // A known CLI eligibility rejection precedes conversation/model submission.
+    // A queued stdin line alone is not proof of submission or proof that replay is safe.
+    const line = [explicit, ...state.stderr.split(/\r?\n/)]
+      .find(s => /eligibility check failed/i.test(s));
+    const reason = transportCause(line ?? '');
+    if (!line || !reason || /UNAUTHENTICATED|invalid_grant|unauthorized|\b401\b|quota|RESOURCE_EXHAUSTED|\b429\b|not supported|not eligible|safety|blocked/i.test(line)) return null;
+    const unchanged = Number.isInteger(state.initialStepHead)
+      && this.conversationHead(state.resumedConversationId) === state.initialStepHead;
+    const safe = state.result?.status === 'ERROR' && state.frames === 1 && state.invalidLines === 0
+      && !state.initSeen && state.inputStep === null && state.steps.size === 0 && state.toolCalls.length === 0
+      && !String(state.result.response ?? '').trim() && unchanged;
+    state.failureInfo = { phase: 'eligibility', reason, safeToRetry: safe, conversationHeadUnchanged: unchanged };
+    return safe ? Object.assign(fault('Antigravity 启动连接中断（' + reason + '），本轮尚未进入模型。', 'MODEL_STARTUP_NETWORK'),
+      { phase: 'eligibility', reason, safeToRetry: true }) : null;
+  }
+  async promptWithStartupRetry(sessionId, text, timeoutMs = 180_000, options = {}) {
+    const deadline = Date.now() + timeoutMs;
+    let retryRecord;
+    for (let attempt = 0; ; attempt++) {
+      if (options.signal?.aborted) throw fault('本轮已取消', 'CANCELLED');
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) throw fault('回复总等待时间已用完，没有重发。', 'REPLY_TIMEOUT');
+      try {
+        const result = await this.prompt(sessionId, text, remaining, { ...options, startupAttempt: attempt });
+        if (retryRecord) retryRecord.recoveredAt = new Date().toISOString();
+        return result;
+      } catch (error) {
+        const delayMs = 2000;
+        if (attempt >= 1 || error.code !== 'MODEL_STARTUP_NETWORK' || error.safeToRetry !== true
+          || deadline - Date.now() < delayMs + 1000 || options.signal?.aborted) throw error;
+        retryRecord = { at: new Date().toISOString(), attempt: attempt + 1, maxRetries: 1,
+          delayMs, phase: error.phase, reason: error.reason, recoveredAt: null };
+        this.lastStartupRetry = retryRecord;
+        try { options.onStartupRetry?.({ ...retryRecord }); } catch { /* Status/logging cannot drop a safe recovery. */ }
+        try { await delay(delayMs, undefined, { signal: options.signal }); }
+        catch { throw fault('本轮已取消', 'CANCELLED'); }
+      }
+    }
+  }
   failure(state) {
     const error = state.result?.error;
     const explicit = typeof error === 'string' ? error : error && typeof error === 'object'
       ? [error.code, error.status, error.message].filter(x => typeof x === 'string').join(' ') : '';
+    const startup = this.startupFailure(state, explicit);
+    if (startup) return startup;
     const authRestored = /authenticated successfully|applyAuthResult/i.test(state.stderr);
     const diagnostic = explicit || (authRestored
       ? state.stderr.replace(/^.*(?:not logged|token source|credential|auth|login|oauth).*$/gmi, '')
       : state.stderr);
+    const fail = (message, code, reason) => {
+      state.failureInfo ??= { phase: state.initSeen ? 'model_or_protocol' : 'startup',
+        reason, safeToRetry: false };
+      return Object.assign(fault(message, code), { phase: state.failureInfo.phase,
+        reason: state.failureInfo.reason, safeToRetry: false });
+    };
     if (/UNAUTHENTICATED|authentication required|not logged|invalid credentials|invalid_grant|unauthori[sz]ed|\b401\b/i.test(diagnostic))
-      return fault('Antigravity 登录已失效，需要在本机恢复模型登录。', 'AUTH_REQUIRED');
+      return fail('Antigravity 登录已失效，需要在本机恢复模型登录。', 'AUTH_REQUIRED', 'AUTHENTICATION');
     if (/RESOURCE_EXHAUSTED|quota.*exceed|rate.?limit|too many requests|\b429\b|额度.*(耗尽|用完)/i.test(diagnostic))
-      return fault('Antigravity 订阅额度或请求频率受限，本轮没有自动重试。', 'MODEL_QUOTA');
-    if (/deadline exceeded|timed? ?out|connection reset|connection refused|TLS|proxy|unavailable|\b50[234]\b/i.test(diagnostic))
-      return fault('Antigravity 网络或服务暂时不可用，本轮没有自动重试。', 'MODEL_NETWORK');
-    if (!state.result) return fault('Antigravity 未返回完整的本轮结果，已停止等待；不会自动重发。', 'CLI_PROTOCOL');
+      return fail('Antigravity 订阅额度或请求频率受限，本轮没有自动重试。', 'MODEL_QUOTA', 'QUOTA');
+    if (/failed to construct executor:.*unknown model key|unknown model key .*model not found/i.test(diagnostic)) {
+      state.failureInfo = { phase: 'executor_initialization', reason: 'MODEL_METADATA_UNAVAILABLE', safeToRetry: false };
+      return fail('Antigravity 未取得当前模型配置，本轮没有生成回复，未自动重发。', 'MODEL_METADATA', 'MODEL_METADATA_UNAVAILABLE');
+    }
+    const transport = state.failureInfo?.reason || transportCause(diagnostic);
+    if (transport)
+      return fail('Antigravity 网络或服务连接中断（' + transport + '），本轮未自动重发。', 'MODEL_NETWORK', transport);
+    if (!state.result) return fail('Antigravity 未返回完整的本轮结果，已停止等待；不会自动重发。', 'CLI_PROTOCOL', 'MISSING_RESULT');
     if (['CANCELED', 'INTERRUPTED'].includes(state.result.status))
-      return fault('Antigravity 本轮被中断，没有自动重试。', 'PROMPT_UNCERTAIN');
-    return fault('Antigravity 本轮返回错误，脱敏原因代码已保存在本机运行记录。', 'MODEL_ERROR');
+      return fail('Antigravity 本轮被中断，没有自动重试。', 'PROMPT_UNCERTAIN', 'INTERRUPTED');
+    return fail('Antigravity 本轮返回错误，脱敏原因代码已保存在本机运行记录。', 'MODEL_ERROR', 'UNCLASSIFIED_PROVIDER_ERROR');
   }
   async prompt(sessionId, text, timeoutMs = 180_000, options = {}) {
     await this.cancellations.get(sessionId);
@@ -101,6 +181,7 @@ export class AntigravityRuntime {
       permissions: { allow: [], ask: [], deny: ['command(*)', 'read_file(*)', 'write_file(*)', 'read_url(*)', 'execute_url(*)', 'mcp(*)', 'mcp(*/*)', 'agent(*)'] },
     }));
     const previous = options.persist === false ? undefined : this.saved[sessionId];
+    const initialStepHead = this.conversationHead(previous?.id);
     if (previous?.id) args.push('--conversation', previous.id);
     const home = this.cfg.home;
     const env = { ...process.env, USERPROFILE: home, HOME: home, HOMEDRIVE: home.slice(0, 2), HOMEPATH: home.slice(2),
@@ -120,6 +201,7 @@ export class AntigravityRuntime {
         buffer: '', result: null, conversationId: previous?.id ?? '', toolCalls: [], stderr: '',
         frames: 0, invalidLines: 0, lastEvent: null, closed: false,
         resumedConversationId: previous?.id ?? '', inputStep: null, steps: new Map(),
+        initialStepHead, initSeen: false, promptQueued: false,
         closedPromise: new Promise(r => { resolveClosed = r; }) };
       this.sessions.set(sessionId, state);
       const onAbort = () => { void this.cancelState(state, fault('本轮已取消', 'CANCELLED')); };
@@ -133,7 +215,7 @@ export class AntigravityRuntime {
         let event;
         try { event = JSON.parse(line); } catch { state.invalidLines++; return; }
         state.frames++; state.lastEvent = event.event ?? null;
-        if (event.event === 'init' && event.conversation_id) state.conversationId = event.conversation_id;
+        if (event.event === 'init') { state.initSeen = true; if (event.conversation_id) state.conversationId = event.conversation_id; }
         if (event.event === 'step_update') {
           const s = event.step_update ?? {};
           if (Number.isInteger(s.step_index) && (!s.conversation_id || s.conversation_id === state.conversationId)) {
@@ -198,7 +280,7 @@ export class AntigravityRuntime {
       });
       const message = { event: 'user', message: { content: prompt } };
       // A terminal result, rather than EOF or process teardown, completes this turn.
-      try { child.stdin.write(JSON.stringify(message) + '\n'); }
+      try { child.stdin.write(JSON.stringify(message) + '\n'); state.promptQueued = true; }
       catch { void this.cancelState(state, fault('Antigravity 输入管道关闭，本轮不会自动重发。', 'PROMPT_UNCERTAIN')); }
       if (options.signal?.aborted) onAbort();
     });
@@ -328,7 +410,8 @@ export class AntigravityRuntime {
     state.settled = true; clearTimeout(state.timer); state.cleanup?.();
     if (this.sessions.get(state.sessionId) === state) this.sessions.delete(state.sessionId);
     if (error) {
-      if (error.code !== 'CANCELLED') this.lastFailure = { code: error.code, message: error.message, at: new Date().toISOString() };
+      if (error.code !== 'CANCELLED') this.lastFailure = { code: error.code, message: error.message, phase: error.phase ?? null,
+        reason: error.reason ?? null, safeToRetry: error.safeToRetry === true, at: new Date().toISOString() };
       if (error.code === 'AUTH_REQUIRED') this.authenticated = false;
       state.reject(error);
     } else state.resolve(value);

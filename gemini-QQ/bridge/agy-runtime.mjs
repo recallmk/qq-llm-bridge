@@ -58,6 +58,7 @@ export class AntigravityRuntime {
           responseChars: typeof state.result?.response === 'string' ? state.result.response.length : 0,
           parsedTail: state.parsedTail === true },
         verification: state.currentReplyVerification ?? null,
+        verificationFailure: state.verificationFailure ?? null,
         toolCalls: state.toolCalls.map(t => ({ name: t.name.slice(0, 120), ok: t.ok })).slice(-24),
       });
     } catch { /* Diagnostic storage must never drop an otherwise valid reply. */ }
@@ -202,43 +203,75 @@ export class AntigravityRuntime {
       if (options.signal?.aborted) onAbort();
     });
   }
-  completedReplyWithHistoricalErrors(state, id) {
-    // Compatibility for resumed CLI conversations whose overall ERROR includes old failed steps.
-    // Automation/JSON tasks always require an actual provider SUCCESS.
-    if (state.options.jsonOnly || !state.resumedConversationId || id !== state.resumedConversationId
-      || id !== state.conversationId || !Number.isInteger(state.inputStep)
-      || !/^[0-9a-f-]{36}$/i.test(id) || typeof state.result.response !== 'string' || !state.result.response.trim()) return null;
+  recoverableToolWarning(row) {
+    // Only local pre-action rejections. Unknown errors and uncertain deliveries stay fatal.
+    if (row.step_type !== 132 || ![4, 7].includes(row.status) || !row.error_details?.length) return null;
+    const detail = Buffer.from(row.error_details).toString('utf8');
+    const payload = Buffer.from(row.step_payload ?? []).toString('utf8');
+    if (payload.includes('mcp_qq_qq_send_sticker') || payload.includes('mcp__qq__qq_send_sticker')) {
+      if (detail.includes('调用失败：请先检索并使用返回的真实表情 id')
+        || detail.includes('调用失败：sticker_id 无效，请先检索')) return 'STICKER_SELECTION_REJECTED';
+      if (detail.includes('调用失败：这个会话的表情还在冷却，直接接话或保持安静即可')) return 'STICKER_COOLDOWN';
+      if (detail.includes('调用失败：本地表情文件不可用')) return 'STICKER_FILE_UNAVAILABLE';
+    }
+    if (payload.includes('list_resources') && payload.includes('xhs')
+      && (detail.includes('server xhs is not allowed in this context') || detail.includes('unknown tool: "list_resources"')))
+      return 'RESOURCE_SERVER_UNAVAILABLE';
+    return null;
+  }
+  completedReplyWithToolWarnings(state, id) {
+    // Verify the reply independently of known, nonfatal tool rejections; never grant a denied action.
+    // JSON/social tasks still require provider SUCCESS.
+    const reject = reason => { state.verificationFailure = reason; return null; };
+    if (state.options.jsonOnly) return reject('AUTOMATION_REQUIRES_SUCCESS');
+    if (!state.resumedConversationId || id !== state.resumedConversationId || id !== state.conversationId
+      || !Number.isInteger(state.inputStep) || !/^[0-9a-f-]{36}$/i.test(id)) return reject('CONVERSATION_OR_INPUT_UNVERIFIED');
+    if (typeof state.result.response !== 'string' || !state.result.response.trim()) return reject('NO_FINAL_TEXT');
     const current = [...state.steps.values()].filter(s => s.index >= state.inputStep);
-    if (!current.length || current.some(s => s.state !== 'DONE' || s.error)) return null;
     const final = current.filter(s => s.type === 'agent_response').sort((a, b) => b.index - a.index)[0];
-    if (!final || final.index <= state.inputStep) return null;
+    if (!final || final.index <= state.inputStep || final.state !== 'DONE' || final.error) return reject('REPLY_STEP_INCOMPLETE');
     const response = state.result.response.trim().replace(/\r\n/g, '\n');
-    if (![final.text, final.doneText].some(s => s.trim().replace(/\r\n/g, '\n') === response)) return null;
-    if (current.some(s => s.index > final.index && s.type !== 'checkpoint')) return null;
+    if (![final.text, final.doneText].some(s => s.trim().replace(/\r\n/g, '\n') === response)) return reject('REPLY_TEXT_MISMATCH');
+    if (current.some(s => s.index > final.index && s.type !== 'checkpoint')) return reject('WORK_AFTER_REPLY');
     let db;
     try {
       const file = dPath(path.join(this.cfg.home, '.gemini', 'antigravity-cli', 'conversations', id + '.db'));
       db = new DatabaseSync(file, { readOnly: true });
       const newest = db.prepare('SELECT max(idx) AS idx FROM steps').get().idx;
-      if (newest !== Math.max(...current.map(s => s.index))) return null;
-      const errors = db.prepare('SELECT idx FROM steps WHERE idx>=? AND length(error_details)>0').all(state.inputStep);
-      if (errors.length) return null;
+      if (newest !== Math.max(...current.map(s => s.index))) return reject('DATABASE_STEP_MISMATCH');
+      const rows = db.prepare('SELECT idx, step_type, status, error_details, step_payload FROM steps WHERE idx>=?').all(state.inputStep);
+      const warnings = [];
+      for (const row of rows) {
+        if (row.status === 3 && !row.error_details?.length) continue;
+        const code = this.recoverableToolWarning(row);
+        if (!code) return reject('CURRENT_STEP_FAILED_OR_INCOMPLETE');
+        warnings.push({ step: row.idx, code });
+      }
+      const warningSteps = new Set(warnings.map(w => w.step));
+      const databaseSteps = new Set(rows.map(r => r.idx));
+      for (const step of current) {
+        if (!databaseSteps.has(step.index)) return reject('STREAM_STEP_NOT_IN_DATABASE');
+        // Some CLI releases omit the final update for a rejected tool; its DB terminal state is authoritative.
+        if (warningSteps.has(step.index) && step.type === 'tool') continue;
+        if (step.state !== 'DONE' || step.error) return reject('STREAM_STEP_INCOMPLETE');
+      }
       const older = db.prepare('SELECT idx FROM steps WHERE idx<? AND length(error_details)>0').all(state.inputStep);
-      if (!older.length) return null;
-      // A transport, quota, authentication or interruption error is never an old-tool compatibility case.
+      if (!older.length && !warnings.length) return reject('ERROR_WITHOUT_KNOWN_TOOL_CAUSE');
       const raw = state.result.error;
       const reason = typeof raw === 'string' ? raw : JSON.stringify(raw ?? '');
-      if (/UNAUTHENTICATED|invalid_grant|unauthorized|authentication|required.*login|quota|RESOURCE_EXHAUSTED|429|deadline|timeout|timed out|network|connection|unavailable|CANCELED|INTERRUPTED|safety|filter|blocked/i.test(reason)) return null;
-      return { code: 'HISTORICAL_CONVERSATION_ERROR', inputStep: state.inputStep, responseStep: final.index,
-        completedSteps: current.length, historicalErrorSteps: older.map(r => r.idx).slice(-20) };
-    } catch { return null; }
+      if (/UNAUTHENTICATED|invalid_grant|unauthorized|authentication|required.*login|quota|RESOURCE_EXHAUSTED|429|deadline|timeout|timed out|network|connection|unavailable|CANCELED|INTERRUPTED|safety|filter|blocked/i.test(reason))
+        return reject('TERMINAL_FAILURE_NOT_RECOVERABLE');
+      return { code: warnings.length ? 'COMPLETED_REPLY_WITH_TOOL_WARNINGS' : 'HISTORICAL_CONVERSATION_ERROR',
+        inputStep: state.inputStep, responseStep: final.index, verifiedSteps: rows.length,
+        historicalErrorSteps: older.map(r => r.idx).slice(-20), toolWarnings: warnings };
+    } catch { return reject('DATABASE_UNAVAILABLE'); }
     finally { db?.close(); }
   }
   finishResult(state) {
     if (state.settled || state.cancelling) return;
     const result = state.result;
     const id = String(result.conversation_id || state.conversationId || '');
-    const compatibility = result.status === 'ERROR' ? this.completedReplyWithHistoricalErrors(state, id) : null;
+    const compatibility = result.status === 'ERROR' ? this.completedReplyWithToolWarnings(state, id) : null;
     state.currentReplyVerification = compatibility;
     if (result.status !== 'SUCCESS' && !compatibility) {
       const error = this.failure(state);
@@ -257,9 +290,9 @@ export class AntigravityRuntime {
       this.beginDrain(state); this.settle(state, error); return;
     }
     this.authenticated = true; this.lastSuccessAt = new Date().toISOString(); this.lastFailure = null;
-    this.lastWarning = compatibility ? { code: compatibility.code, message: 'CLI保留历史错误标记，本轮回复已按步骤和数据库核验。', at: this.lastSuccessAt } : null;
+    this.lastWarning = compatibility ? { code: compatibility.code, message: compatibility.toolWarnings.length ? '本轮文字已核验；可选工具未完成或已降级，未扩大权限。' : 'CLI保留历史错误标记，本轮回复已按步骤和数据库核验。', at: this.lastSuccessAt } : null;
     const u = result.usage ?? {};
-    this.diagnostic(state, { code: compatibility ? 'VERIFIED_REPLY_WITH_HISTORICAL_ERROR' : 'SUCCESS', phase: 'terminal_result' });
+    this.diagnostic(state, { code: compatibility ? (compatibility.toolWarnings.length ? 'VERIFIED_REPLY_WITH_TOOL_WARNINGS' : 'VERIFIED_REPLY_WITH_HISTORICAL_ERROR') : 'SUCCESS', phase: 'terminal_result' });
     this.beginDrain(state);
     this.settle(state, null, { text: String(result.response ?? ''), toolCalls: state.toolCalls,
       providerStatus: result.status, completionWarning: compatibility?.code ?? null,

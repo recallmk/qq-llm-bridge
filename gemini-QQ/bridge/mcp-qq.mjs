@@ -20,7 +20,7 @@ const MAX_TEXT = 1800;
 export const TOOLS = [
   {
     name: 'qq_find_sticker',
-    description: '按当前语境、情绪或动作查找本地大肥鱼表情包。返回真实 sticker_id（id）、画面、台词和适用场景。想配图时再查，不必每轮用。',
+    description: '按当前语境、情绪或动作查找本地Gemini紫色猫娘表情包。返回真实 sticker_id（id）、画面、台词和适用场景。想配图时再查，不必每轮用。',
     inputSchema: { type: 'object', properties: {
       query: { type: 'string', description: '简短场景词，例如：无语、被窝偷笑、疑惑、开饭、给你心心、摸鱼、晚安' },
       limit: { type: 'integer', minimum: 1, maximum: 12, description: '返回数量，默认8' },
@@ -28,9 +28,9 @@ export const TOOLS = [
   },
   {
     name: 'qq_send_sticker',
-    description: '向当前 QQ 会话发送一张已检索到的大肥鱼表情包。只能使用 qq_find_sticker 返回的真实 id，不接受路径、URL 或其他目标。每轮最多一张，受会话冷却限制。可只发表情，也可在最终正文自然补一句；不要重复发图，不发代码或文件路径。',
+    description: '向当前 QQ 会话发送一张本轮已检索到的Gemini紫色猫娘表情包。每一轮都须先调用 qq_find_sticker，再使用本轮返回的真实 id，不接受路径、URL 或其他目标。每轮最多一张，受会话冷却限制。可只发表情，也可在最终正文自然补一句；不要重复发图，不发代码或文件路径。',
     inputSchema: { type: 'object', properties: {
-      sticker_id: { type: 'string', description: 'qq_find_sticker 返回的 id，例如 fish-10N01' },
+      sticker_id: { type: 'string', description: '本轮 qq_find_sticker 返回的完整 id，不能沿用历史检索或自行编造' },
     }, required: ['sticker_id'], additionalProperties: false },
   },
   {

@@ -1059,7 +1059,7 @@ async function startControl() {
           return {
             dsh: { ready: rs.ready, pid: rs.pid, restarts: rs.restarts, activeTurns: rs.activeTurns,
               closingProcesses: rs.closingProcesses, cachedConversations: rs.cachedConversations,
-              lastSuccessAt: rs.lastSuccessAt, lastFailure: rs.lastFailure },
+              lastSuccessAt: rs.lastSuccessAt, lastFailure: rs.lastFailure, lastWarning: rs.lastWarning },
             vision: { enabled: cfg.vision.enabled, maxImages: 4, maxImageBytes: cfg.vision.maxImageBytes },
             stickers: { enabled: cfg.stickers.enabled, count: stickerFiles.length,
               animated: stickerFiles.filter(file => file.toLowerCase().endsWith('.gif')).length, cooldownSeconds: cfg.stickers.cooldownSeconds },
